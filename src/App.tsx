@@ -1,3 +1,4 @@
+import { useWindowSize } from "@react-hook/window-size";
 import React from "react";
 import ForceGraph, {
   ForceGraphMethods,
@@ -31,6 +32,7 @@ export default function App() {
     undefined
   );
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [width, height] = useWindowSize();
 
   React.useEffect(() => {
     async function createGraphData() {
@@ -91,6 +93,8 @@ export default function App() {
         onBackgroundClick={() => {
           setSelected(null);
         }}
+        width={width}
+        height={height}
       />
 
       <div className="controls">
