@@ -10,16 +10,22 @@ const blacklisted = [
   "discordapp.com"
 ];
 
+function shouldBePurged(graph, domain) {
+  if (domain.trim() === "") return true;
+  if (blacklisted.some((x) => domain.endsWith(x))) return true;
+  if (domain.startsWith("www.") && graph[domain.replace("www.", "")] != null)
+    return true;
+  if (graph[domain]?.length === 1 && graph[domain][0] === domain) return true;
+  return false;
+}
+
 function cleanGraph(graph) {
   const newGraph = {};
 
   for (const [key, value] of Object.entries(graph)) {
-    if (blacklisted.some((x) => key.endsWith(x))) continue;
-    if (value.length === 1 && value[0] === key) continue;
-
+    if (shouldBePurged(graph, key)) continue;
     newGraph[key] = Array.from(new Set(value)).filter(
-      (x) =>
-        x != null && x.trim() !== "" && !blacklisted.some((y) => x.endsWith(y))
+      (x) => x != null && !shouldBePurged(graph, x)
     );
   }
 
