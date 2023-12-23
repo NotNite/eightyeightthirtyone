@@ -1,21 +1,35 @@
 {
   "name": "eightyeightthirtyone",
   "version": "1.0.0",
-  "main": "index.js",
-  "author": "NotNite",
+  "author": "NotNite <hi@notnite.com>",
   "license": "MIT",
+  "type": "module",
   "scripts": {
-    "start": "parcel index.html",
-    "build": "parcel build index.html"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "graphology": "^0.25.4",
-    "graphology-layout-forceatlas2": "^0.10.1",
     "puppeteer": "^21.6.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-force-graph-2d": "^1.25.3",
+    "react-force-graph-3d": "^1.24.1",
     "sigma": "^3.0.0-beta.4"
   },
   "devDependencies": {
     "@parcel/transformer-inline-string": "^2.10.3",
-    "parcel": "^2.10.3"
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "parcel": "^2.10.3",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
   }
 }
