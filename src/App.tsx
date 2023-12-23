@@ -73,7 +73,7 @@ export default function App() {
     graphRef.current?.zoom(8, 1000);
   }
 
-  const color = "lightgray";
+  const color = "grey";
   return (
     <>
       <ForceGraph
@@ -85,7 +85,20 @@ export default function App() {
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
         backgroundColor="#000000"
-        linkColor={() => color}
+        linkColor={(link) => {
+          if (origGraph == null) return color;
+
+          // @ts-expect-error cbf to type
+          const source = link.source.id as string;
+          // @ts-expect-error cbf to type
+          const target = link.target.id as string;
+
+          const sourceToTarget = origGraph[source]?.includes(target) === true;
+          const targetToSource = origGraph[target]?.includes(source) === true;
+
+          if (sourceToTarget && targetToSource) return "white";
+          return color;
+        }}
         linkDirectionalArrowColor={() => color}
         onNodeClick={(node) => {
           setSelected(node.id as string);
