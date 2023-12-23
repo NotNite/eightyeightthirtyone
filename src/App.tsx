@@ -107,6 +107,12 @@ export default function App() {
             }
           }}
         />
+        <span className="by">
+          A project by{" "}
+          <a href="https://notnite.com/">
+            <img src="/notnite.png" alt="notnite" />
+          </a>
+        </span>
       </div>
 
       {selected != null && (

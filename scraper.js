@@ -3,13 +3,26 @@ import fs from "fs";
 
 const startUrl = new URL("https://notnite.com/");
 
+const blacklisted = [
+  "web.archive.org",
+  "discord.gg",
+  "discord.com",
+  "discordapp.com"
+];
+
 function cleanGraph(graph) {
   const newGraph = {};
+
   for (const [key, value] of Object.entries(graph)) {
+    if (blacklisted.some((x) => key.endsWith(x))) continue;
+    if (value.length === 1 && value[0] === key) continue;
+
     newGraph[key] = Array.from(new Set(value)).filter(
-      (x) => x != null && x.trim() !== ""
+      (x) =>
+        x != null && x.trim() !== "" && !blacklisted.some((y) => x.endsWith(y))
     );
   }
+
   return newGraph;
 }
 
