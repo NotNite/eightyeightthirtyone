@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>eightyeightthirtyone</title>
+    <style>
+      body,
+      html,
+      #container {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script async defer type="module">
+      import Sigma from "sigma";
+      import Graph from "graphology";
+      import forceAtlas2 from "graphology-layout-forceatlas2";
+
+      // parcel knows how to handle this
+      import fs from "fs";
+      const graphText = fs.readFileSync(__dirname + "/graph.json", "utf8");
+
+      async function main() {
+        const graph = JSON.parse(graphText);
+
+        const container = document.querySelector("#container");
+        const sigmaGraph = new Graph();
+
+        const domains = Array.from(
+          new Set(
+            Object.entries(graph)
+              .map((x) => x[1].concat([x[0]]))
+              .flat()
+          )
+        );
+
+        let important = [];
+        for (const domain of ["notnite.com"]) {
+          important.push(domain);
+          important = [...important, ...graph[domain]];
+        }
+        important = Array.from(new Set(important));
+
+        for (const domain of domains) {
+          sigmaGraph.addNode(domain, {
+            label: domain,
+            size: 5,
+            color: important.includes(domain) ? "#cb2027" : undefined
+          });
+        }
+
+        const twoWay = [];
+        for (const [domain, connections] of Object.entries(graph)) {
+          for (const connection of connections) {
+            let label = `${domain} -> ${connection}`;
+            if (
+              twoWay.find(
+                (x) =>
+                  (x[0] === domain && x[1] === connection) ||
+                  (x[1] === domain && x[0] === connection)
+              )
+            ) {
+              continue;
+            }
+
+            if (
+              graph[connection] != undefined &&
+              graph[connection].includes(domain)
+            ) {
+              twoWay.push([domain, connection]);
+              label = `${domain} <-> ${connection}`;
+            }
+
+            sigmaGraph.addEdge(domain, connection, {
+              type: "arrow",
+              label
+            });
+          }
+        }
+
+        sigmaGraph.nodes().forEach((node, i) => {
+          const angle = (i * 2 * Math.PI) / sigmaGraph.order;
+          sigmaGraph.setNodeAttribute(node, "x", 100 * Math.cos(angle));
+          sigmaGraph.setNodeAttribute(node, "y", 100 * Math.sin(angle));
+        });
+        const positions = forceAtlas2(sigmaGraph, { iterations: 50 });
+        sigmaGraph.nodes().forEach((node, i) => {
+          const name = sigmaGraph.getNodeAttribute(node, "label");
+          const { x, y } = positions[name];
+          sigmaGraph.setNodeAttribute(node, "x", x);
+          sigmaGraph.setNodeAttribute(node, "y", y);
+        });
+
+        const renderer = new Sigma(sigmaGraph, container, {
+          renderEdgeLabels: true,
+          color: "#303030"
+        });
+      }
+
+      main();
+    </script>
+  </body>
+</html>
