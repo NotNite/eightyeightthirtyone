@@ -58,6 +58,7 @@ export default function App() {
     createGraphData();
   }, []);
 
+  const color = "lightgray";
   return (
     <>
       <ForceGraph
@@ -68,6 +69,9 @@ export default function App() {
         linkHoverPrecision={30}
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
+        backgroundColor="#000000"
+        linkColor={() => color}
+        linkDirectionalArrowColor={() => color}
         onNodeClick={(node) => {
           const url = `https://${node.id}/`;
           window.open(url, "_blank");
