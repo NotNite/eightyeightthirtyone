@@ -24,15 +24,20 @@ type ScrapedGraph = {
 
 export default function App() {
   const graphRef = React.useRef<GraphRef>();
+  const [origGraph, setOrigGraph] = React.useState<ScrapedGraph | undefined>(
+    undefined
+  );
   const [graphData, setGraphData] = React.useState<CustomGraphData | undefined>(
     undefined
   );
+  const [selected, setSelected] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     async function createGraphData() {
       const graph: ScrapedGraph = await fetch("/graph.json").then((x) =>
         x.json()
       );
+      setOrigGraph(graph);
 
       const domains = Array.from(
         new Set(
@@ -58,6 +63,14 @@ export default function App() {
     createGraphData();
   }, []);
 
+  function select(domain: string) {
+    const node = graphData?.nodes.find((x) => x.id === domain);
+    if (node == null) return;
+    setSelected(node.id as string);
+    graphRef.current?.centerAt(node.x!, node.y!, 1000);
+    graphRef.current?.zoom(8, 1000);
+  }
+
   const color = "lightgray";
   return (
     <>
@@ -73,8 +86,10 @@ export default function App() {
         linkColor={() => color}
         linkDirectionalArrowColor={() => color}
         onNodeClick={(node) => {
-          const url = `https://${node.id}/`;
-          window.open(url, "_blank");
+          setSelected(node.id as string);
+        }}
+        onBackgroundClick={() => {
+          setSelected(null);
         }}
       />
 
@@ -84,16 +99,44 @@ export default function App() {
           placeholder="Search"
           onKeyDown={(e) => {
             if (e.key === "Enter" && graphData != null) {
-              const node = graphData.nodes.find(
-                (x) => x.id === (e.target as HTMLInputElement).value
-              );
-              if (node == null) return;
-              graphRef.current?.centerAt(node.x!, node.y!, 1000);
-              graphRef.current?.zoom(8, 1000);
+              select(e.currentTarget.value);
             }
           }}
         />
       </div>
+
+      {selected != null && (
+        <div className="infobox">
+          <div className="infoboxInner">
+            <a href={`https://${selected}`} target="_blank" rel="noreferrer">
+              <h3>{selected}</h3>
+            </a>
+
+            <span>Links to:</span>
+            <ul>
+              {origGraph != null &&
+                origGraph[selected] != null &&
+                origGraph[selected].map((x, i) => (
+                  <li key={i}>
+                    <button onClick={() => select(x)}>{x}</button>
+                  </li>
+                ))}
+            </ul>
+
+            <span>Linked from:</span>
+            <ul>
+              {origGraph != null &&
+                Object.entries(origGraph)
+                  .filter((x) => x[1].includes(selected))
+                  .map((x, i) => (
+                    <li key={i}>
+                      <button onClick={() => select(x[0])}>{x[0]}</button>
+                    </li>
+                  ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </>
   );
 }
