@@ -31,7 +31,7 @@ body {
 .infobox {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   background-color: rgba(0, 0, 0, 0.5);
   color: white;
   padding: 1rem;
@@ -43,7 +43,6 @@ body {
   overflow: scroll;
 }
 
-.infoboxInner a {
-  text-decoration: none;
+a {
   color: white;
 }

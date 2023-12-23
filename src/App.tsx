@@ -108,7 +108,9 @@ export default function App() {
           }}
         />
         <span className="by">
-          A project by{" "}
+          A{" "}
+          <a href="https://github.com/NotNite/eightyeightthirtyone">project</a>{" "}
+          by{" "}
           <a href="https://notnite.com/">
             <img src="/notnite.png" alt="notnite" />
           </a>
