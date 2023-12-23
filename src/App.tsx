@@ -74,6 +74,23 @@ export default function App() {
   }
 
   const color = "grey";
+  const colorChooser = (link: LinkObject<CustomNodeType, CustomLinkType>) => {
+    if (origGraph == null) return color;
+
+    // @ts-expect-error cbf to type
+    const source = link.source.id as string;
+    // @ts-expect-error cbf to type
+    const target = link.target.id as string;
+
+    if (selected != null && source === selected) return "aqua";
+    if (selected != null && target === selected) return "blue";
+
+    const sourceToTarget = origGraph[source]?.includes(target) === true;
+    const targetToSource = origGraph[target]?.includes(source) === true;
+    if (sourceToTarget && targetToSource) return "white";
+    return color;
+  };
+
   return (
     <>
       <ForceGraph
@@ -85,21 +102,8 @@ export default function App() {
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
         backgroundColor="#000000"
-        linkColor={(link) => {
-          if (origGraph == null) return color;
-
-          // @ts-expect-error cbf to type
-          const source = link.source.id as string;
-          // @ts-expect-error cbf to type
-          const target = link.target.id as string;
-
-          const sourceToTarget = origGraph[source]?.includes(target) === true;
-          const targetToSource = origGraph[target]?.includes(source) === true;
-
-          if (sourceToTarget && targetToSource) return "white";
-          return color;
-        }}
-        linkDirectionalArrowColor={() => color}
+        linkColor={colorChooser}
+        linkDirectionalArrowColor={colorChooser}
         onNodeClick={(node) => {
           setSelected(node.id as string);
         }}
