@@ -23,7 +23,8 @@ await pruneQueue();
 
 function validateUrl(url: string) {
   try {
-    new URL(url);
+    const uri = new URL(url);
+    if (!["http:", "https:"].includes(uri.protocol)) return false;
   } catch (e) {
     return false;
   }
@@ -33,7 +34,9 @@ function validateUrl(url: string) {
 
 function hostname(url: string) {
   try {
-    return new URL(url).hostname;
+    const uri = new URL(url);
+    if (!validateUrl(uri)) return null;
+    return uri.hostname;
   } catch (e) {
     return null;
   }
@@ -155,6 +158,11 @@ router.post("/work", async (ctx) => {
   }
 
   const data = WorkSchema.parse(ctx.request.body);
+  if (!validateUrl(data.orig_url) || !validateUrl(data.result_url)) {
+    ctx.status = 400;
+    return;
+  }
+
   if (data.orig_url !== data.result_url) {
     await db.redirect.upsert({
       create: {
