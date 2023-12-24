@@ -35,7 +35,7 @@ function validateUrl(url: string) {
 function hostname(url: string) {
   try {
     const uri = new URL(url);
-    if (!validateUrl(uri)) return null;
+    if (!validateUrl(url)) return null;
     return uri.hostname;
   } catch (e) {
     return null;
