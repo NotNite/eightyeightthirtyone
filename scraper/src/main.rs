@@ -24,15 +24,25 @@ async fn main() -> anyhow::Result<()> {
     let manager = Arc::new(Mutex::new(manager));
     let mut tasks = vec![];
 
+    let (shutdown_tx, shutdown_rx) = flume::unbounded();
+
     for host in config.hosts {
         let mut caps = DesiredCapabilities::chrome();
         caps.add_chrome_arg(&format!("--user-agent={}", types::USER_AGENT))?;
         let driver = WebDriver::new(&host, caps).await?;
-        let worker = worker::Worker::new(manager.clone(), driver);
+        let worker = worker::Worker::new(manager.clone(), driver, host, shutdown_rx.clone());
         tasks.push(worker.run());
     }
 
-    futures::future::join_all(tasks).await;
+    tasks.push(tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        shutdown_tx.send(()).ok();
+    }));
+
+    tokio::select! {
+        _ = futures::future::join_all(tasks) => {},
+        _ = shutdown_rx.recv_async() => {},
+    }
 
     Ok(())
 }

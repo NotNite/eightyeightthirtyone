@@ -1,4 +1,5 @@
 use crate::types::{DomainInfo, Graph};
+use rand::prelude::SliceRandom;
 
 pub struct Manager {
     pub queue: Vec<String>,
@@ -18,15 +19,17 @@ impl Manager {
         for (host, data) in &manager.graph.domains {
             for link in &data.links {
                 let url = manager.graph.redirects.get(&link.url).unwrap_or(&link.url);
-                if !manager.graph.visited.contains_key(url)
-                    && !manager.should_be_purged(url.clone())
-                {
+                if !manager.should_be_purged(url.clone()) {
                     if let Ok(Ok(uri)) = url::Url::parse(host).map(|x| x.join(url)) {
                         manager.queue.push(uri.to_string());
                     }
                 }
             }
         }
+
+        manager.queue.sort();
+        manager.queue.dedup();
+        manager.queue.shuffle(&mut rand::thread_rng());
 
         manager
     }
@@ -105,7 +108,7 @@ impl Manager {
 
         self.queue.dedup();
         for entry in self.queue.clone() {
-            if self.graph.visited.contains_key(&entry) || self.should_be_purged(entry.clone()) {
+            if self.should_be_purged(entry.clone()) {
                 self.queue.retain(|x| x != &entry);
             }
         }
@@ -123,6 +126,11 @@ impl Manager {
             && self.graph.domains[&url].links[0].url == url
         {
             return true;
+        }
+
+        // Scraper did an oopsie
+        if self.graph.domains.contains_key(&url) && self.graph.domains[&url].links.is_empty() {
+            return false;
         }
 
         if self.graph.visited.contains_key(&url) {

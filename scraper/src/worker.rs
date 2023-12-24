@@ -11,6 +11,8 @@ use tokio::sync::Mutex;
 pub struct Worker {
     manager: Arc<Mutex<Manager>>,
     driver: WebDriver,
+    id: String,
+    shutdown_rx: flume::Receiver<()>,
 }
 
 #[async_recursion::async_recursion]
@@ -99,23 +101,40 @@ async fn process(driver: &WebDriver, url: &str) -> anyhow::Result<(String, Domai
 }
 
 impl Worker {
-    pub fn new(manager: Arc<Mutex<Manager>>, driver: WebDriver) -> Self {
-        Self { manager, driver }
+    pub fn new(
+        manager: Arc<Mutex<Manager>>,
+        driver: WebDriver,
+        id: String,
+        shutdown_rx: flume::Receiver<()>,
+    ) -> Self {
+        Self {
+            manager,
+            driver,
+            id,
+            shutdown_rx,
+        }
     }
 
     pub fn run(&self) -> tokio::task::JoinHandle<()> {
         let manager = self.manager.clone();
         let driver = self.driver.clone();
+        let id = self.id.clone();
+        let shutdown_rx = self.shutdown_rx.clone();
 
         tokio::spawn(async move {
             loop {
+                if shutdown_rx.try_recv().is_ok() {
+                    driver.quit().await.ok();
+                    break;
+                }
+
                 let url = {
                     let mut manager = manager.lock().await;
                     manager.dequeue()
                 };
 
                 if let Some(url) = url {
-                    println!("processing: {}", url);
+                    println!("[{}] processing: {}", id, url);
                     if let Ok((real_url, data)) = process(&driver, &url).await {
                         let mut manager = manager.lock().await;
                         if url != real_url {
