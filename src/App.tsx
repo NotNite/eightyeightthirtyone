@@ -105,14 +105,19 @@ export default function App() {
     )
       return "red";
 
-    if (selected != null && source === selected) return "aqua";
-    if (selected != null && target === selected) return "blue";
-
     const isLinkedTo = (source: string, target: string) =>
       origGraph.linksTo[source]?.includes(target);
     const sourceToTarget = isLinkedTo(source, target);
     const targetToSource = isLinkedTo(target, source);
+
+    if (selected != null && (source === selected || target === selected)) {
+      if (sourceToTarget && targetToSource) return "cyan";
+      if (source === selected && sourceToTarget) return "blue";
+      return "green";
+    }
+
     if (sourceToTarget && targetToSource) return "white";
+
     return color;
   };
 
