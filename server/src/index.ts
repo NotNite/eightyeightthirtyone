@@ -46,68 +46,144 @@ function hostname(url: string) {
   }
 }
 
-async function fillQueue() {
-  const links = await db.link.findMany({
-    where: {
-      dst: {
-        OR: [
-          {
-            lastScraped: {
-              lt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
-            }
-          },
-          {
-            lastScraped: null
-          }
-        ]
-      },
+async function shouldBePurged(url: string) {
+  if (!validateUrl(url)) return true;
 
-      dstUrl: {
-        notIn: queue
-      }
+  const page = await db.page.findUnique({
+    where: {
+      url
     }
   });
 
+  if (page != null) {
+    const links = await db.link.findMany({
+      where: {
+        srcUrl: page.url
+      }
+    });
+
+    if (links.length === 1) {
+      const dst = links[0].dstUrl;
+      if (dst === page.url) {
+        return true;
+      }
+
+      const redirect = await db.redirect.findUnique({
+        where: {
+          from: dst
+        }
+      });
+
+      if (redirect?.to === page.url) {
+        return true;
+      }
+    }
+  }
+
+  const redirect = await db.redirect.findUnique({
+    where: {
+      from: url
+    }
+  });
+
+  if (redirect != null) {
+    const page = await db.page.findUnique({
+      where: {
+        url: redirect.to
+      }
+    });
+
+    if (page != null) {
+      const links = await db.link.findMany({
+        where: {
+          srcUrl: page.url
+        }
+      });
+
+      if (links.length === 1 && links[0].dstUrl === page.url) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+async function shouldBeQueued(url: string) {
+  if (await shouldBePurged(url)) return false;
+
+  const page = await db.page.findUnique({
+    where: {
+      url
+    }
+  });
+
+  if (
+    page != null &&
+    page.lastScraped != null &&
+    page.lastScraped < new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
+  ) {
+    return false;
+  }
+
+  const redirect = await db.redirect.findUnique({
+    where: {
+      from: url
+    }
+  });
+
+  if (redirect != null) {
+    const page = await db.page.findUnique({
+      where: {
+        url: redirect.to
+      }
+    });
+    if (
+      page != null &&
+      page.lastScraped != null &&
+      page.lastScraped < new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function fillQueue() {
+  // slow as balls but i cbf rn
+  const links = await db.link.findMany({});
+
   for (const link of links) {
-    if (!queue.includes(link.dstUrl)) {
+    if ((await shouldBeQueued(link.dstUrl)) && !queue.includes(link.dstUrl)) {
       queue.push(link.dstUrl);
     }
   }
 }
 
 async function pruneQueue() {
-  async function checkPage(url: string) {
-    const page = await db.page.findUnique({
-      where: {
-        url
-      }
-    });
-
-    // Only allow scraping if we haven't scraped this page in the last week
-    if (page != null && page.lastScraped != null) {
-      const diff = Date.now() - page.lastScraped.getTime();
-      if (diff < 1000 * 60 * 60 * 24 * 7) {
-        //console.log("Skipping:", url);
-        queue.splice(queue.indexOf(url), 1);
-      }
-    }
-  }
-
   for (const url of [...queue]) {
-    // No invalid URLs
     if (!validateUrl(url)) {
       console.log("Invalid URL:", url);
       queue.splice(queue.indexOf(url), 1);
       continue;
     }
 
-    checkPage(url);
+    if (!(await shouldBeQueued(url))) {
+      queue.splice(queue.indexOf(url), 1);
+      continue;
+    }
+
     const redirect = await db.redirect.findUnique({
       where: {
         from: url
       }
     });
-    if (redirect != null) checkPage(redirect.to);
+
+    if (redirect != null && !(await shouldBeQueued(redirect.to))) {
+      queue.splice(queue.indexOf(url), 1);
+      continue;
+    }
   }
 
   queue = Array.from(new Set(queue));
@@ -143,6 +219,7 @@ router.get("/work", async (ctx) => {
   console.log("Queue length:", queue.length);
   if (queue.length <= 0) {
     await fillQueue();
+    console.log("Refilled queue", queue);
   }
 });
 
@@ -216,30 +293,18 @@ router.post("/work", async (ctx) => {
       continue;
     }
 
-    const redirect = await db.redirect.findUnique({
-      where: {
-        from: link.to
-      }
-    });
-
-    const url = redirect == null ? link.to : redirect.to;
-    if (!validateUrl(url)) {
-      console.log("Invalid redirect:", url);
-      continue;
-    }
-
-    const pageHost = hostname(url);
+    const pageHost = hostname(link.to);
     if (pageHost == null) continue;
 
     const page = await db.page.findUnique({
       where: {
-        url
+        url: link.to
       }
     });
     if (!page) {
       await db.page.create({
         data: {
-          url,
+          url: link.to,
           domain: pageHost
         }
       });
@@ -275,8 +340,8 @@ router.post("/work", async (ctx) => {
       });
     }
 
-    if (!queue.includes(url)) {
-      queue.push(url);
+    if (!queue.includes(link.to) && (await shouldBeQueued(link.to))) {
+      queue.push(link.to);
     }
   }
 
