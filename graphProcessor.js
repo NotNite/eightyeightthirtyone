@@ -73,14 +73,14 @@ const out = {
   linksTo: Object.fromEntries(
     Object.entries(Object.fromEntries(domainLinks.entries())).map(([k, v]) => [
       k,
-      [...v]
+      [...v].filter((x) => x !== null)
     ])
   ),
 
   linkedFrom: Object.fromEntries(
     Object.entries(Object.fromEntries(linkedFrom.entries())).map(([k, v]) => [
       k,
-      [...v]
+      [...v].filter((x) => x !== null)
     ])
   ),
 
