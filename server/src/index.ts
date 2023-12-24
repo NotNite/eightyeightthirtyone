@@ -121,7 +121,7 @@ async function shouldBeQueued(url: string) {
   if (
     page != null &&
     page.lastScraped != null &&
-    page.lastScraped < new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
+    page.lastScraped > new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
   ) {
     return false;
   }
@@ -141,7 +141,7 @@ async function shouldBeQueued(url: string) {
     if (
       page != null &&
       page.lastScraped != null &&
-      page.lastScraped < new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
+      page.lastScraped > new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
     ) {
       return false;
     }
@@ -288,66 +288,63 @@ router.post("/work", async (ctx) => {
     }
   });
 
-  if (!data.success) {
-    ctx.status = 204;
-    return;
-  }
-
-  for (const link of data.links!) {
-    if (!validateUrl(link.to)) {
-      console.log("Invalid URL:", link.to);
-      continue;
-    }
-
-    const pageHost = hostname(link.to);
-    if (pageHost == null) continue;
-
-    const page = await db.page.findUnique({
-      where: {
-        url: link.to
+  if (data.success) {
+    for (const link of data.links!) {
+      if (!validateUrl(link.to)) {
+        console.log("Invalid URL:", link.to);
+        continue;
       }
-    });
-    if (!page) {
-      await db.page.create({
-        data: {
-          url: link.to,
-          domain: pageHost
-        }
-      });
-    }
 
-    const dbLink = await db.link.findFirst({
-      where: {
-        srcUrl: data.result_url,
-        dstUrl: link.to,
-        imageUrl: link.image
-      }
-    });
+      const pageHost = hostname(link.to);
+      if (pageHost == null) continue;
 
-    if (dbLink == null) {
-      await db.link.create({
-        data: {
-          srcUrl: data.result_url,
-          dstUrl: link.to,
-          imageUrl: link.image,
-          imageHash: link.image_hash
-        }
-      });
-    } else {
-      await db.link.update({
+      const page = await db.page.findUnique({
         where: {
-          id: dbLink.id
-        },
-        data: {
+          url: link.to
+        }
+      });
+      if (!page) {
+        await db.page.create({
+          data: {
+            url: link.to,
+            domain: pageHost
+          }
+        });
+      }
+
+      const dbLink = await db.link.findFirst({
+        where: {
           srcUrl: data.result_url,
           dstUrl: link.to,
           imageUrl: link.image
         }
       });
-    }
 
-    if (!queue.includes(link.to) && (await shouldBeQueued(link.to))) {
-      queue.push(link.to);
+      if (dbLink == null) {
+        await db.link.create({
+          data: {
+            srcUrl: data.result_url,
+            dstUrl: link.to,
+            imageUrl: link.image,
+            imageHash: link.image_hash
+          }
+        });
+      } else {
+        await db.link.update({
+          where: {
+            id: dbLink.id
+          },
+          data: {
+            srcUrl: data.result_url,
+            dstUrl: link.to,
+            imageUrl: link.image
+          }
+        });
+      }
+
+      if (!queue.includes(link.to) && (await shouldBeQueued(link.to))) {
+        queue.push(link.to);
+      }
     }
   }
 

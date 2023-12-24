@@ -17,5 +17,6 @@ serde_json = "1.0.108"
 sha2 = "0.10.8"
 texting_robots = "0.2.2"
 thirtyfour = "0.31.0"
+thiserror = "1.0.51"
 tokio = { version = "1.35.1", features = ["full"] }
 url = "2.5.0"

@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::time::Duration;
 use texting_robots::{get_robots_url, Robot};
-use thirtyfour::{fantoccini::wd::Locator, By, DesiredCapabilities, WebDriver, WebElement};
+use thirtyfour::{
+    error::WebDriverError, fantoccini::wd::Locator, By, DesiredCapabilities, WebDriver, WebElement,
+};
+use thiserror::Error;
 
 pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 eightyeightthirtyone/1.0.0 (https://github.com/NotNite/eightyeightthirtyone)";
 
@@ -26,6 +29,21 @@ pub struct WorkSchema {
     pub result_url: String,
     pub success: bool,
     pub links: Option<Vec<LinkSchema>>,
+}
+
+#[derive(Error, Debug)]
+pub enum ScrapeError {
+    #[error("webdriver error")]
+    WebDriver(#[from] thirtyfour::error::WebDriverError),
+
+    #[error("API call error")]
+    Api(#[from] Option<reqwest::Error>),
+
+    #[error("robots.txt disallowed")]
+    Robots,
+
+    #[error("unknown error")]
+    Unknown(#[from] anyhow::Error),
 }
 
 #[async_recursion::async_recursion]
@@ -73,12 +91,12 @@ async fn process(
     driver: &WebDriver,
     url: &str,
     reqwest_client: &reqwest::Client,
-) -> anyhow::Result<WorkSchema> {
+) -> Result<WorkSchema, ScrapeError> {
     if !check_robots_txt(url).await.unwrap_or_default() {
-        anyhow::bail!("robots.txt disallowed");
+        return Err(ScrapeError::Robots);
     }
 
-    let parsed_url = url::Url::parse(url)?;
+    let parsed_url = url::Url::parse(url).map_err(|e| ScrapeError::Unknown(e.into()))?;
 
     driver.goto(url).await?;
     let current_url = driver.current_url().await?;
@@ -93,11 +111,16 @@ async fn process(
                 .ok()
                 .map(|u| u.to_string())
             {
-                let children = recursive_children(&link).await?;
+                let children = recursive_children(&link)
+                    .await
+                    .map_err(ScrapeError::Unknown)?;
                 for child in children {
                     if child.tag_name().await? == "img" {
                         if let Some(src) = child.attr("src").await? {
-                            let src = parsed_url.join(&src)?.to_string();
+                            let src = parsed_url
+                                .join(&src)
+                                .map_err(|e| ScrapeError::Unknown(e.into()))?
+                                .to_string();
 
                             if let Ok(hash) = image_is_88x31(&src, reqwest_client).await {
                                 result.push(LinkSchema {
@@ -125,43 +148,57 @@ async fn try_work(
     client: &reqwest::Client,
     driver: &WebDriver,
     config: &Config,
-) -> anyhow::Result<()> {
+) -> Result<(), ScrapeError> {
     let req = client
         .get(&format!("{}/work", config.host))
         .header("Authorization", config.key.clone())
         .send()
-        .await?;
+        .await
+        .map_err(|e| ScrapeError::Api(Some(e)))?;
+
     if !req.status().is_success() {
-        anyhow::bail!("failed to get work");
+        return Err(ScrapeError::Api(None));
     }
 
     let url = req.text().await?;
 
     if !url.is_empty() {
         println!("Processing: {}", url);
-        if let Ok(work) = process(driver, &url, client).await {
-            let work = serde_json::to_string(&work)?;
+        let result = process(driver, &url, client).await;
+        if let Ok(work) = result {
+            let work = serde_json::to_string(&work).map_err(|e| ScrapeError::Unknown(e.into()))?;
             client
                 .post(&format!("{}/work", config.host))
                 .header("Content-Type", "application/json")
                 .header("Authorization", config.key.clone())
                 .body(work)
                 .send()
-                .await?;
+                .await
+                .map_err(|e| ScrapeError::Api(Some(e)))?;
         } else {
-            println!("Failed to process: {}", url);
+            // Do not report webdriver errors as a failure - sometimes they crash
+            if let Err(ScrapeError::WebDriver(WebDriverError::CmdError(_))) = result {
+                return Err(result.err().unwrap());
+            }
+
             client
                 .post(&format!("{}/work", config.host))
                 .header("Content-Type", "application/json")
                 .header("Authorization", config.key.clone())
-                .body(serde_json::to_string(&WorkSchema {
-                    orig_url: url.to_string(),
-                    result_url: url.to_string(),
-                    success: false,
-                    links: None,
-                })?)
+                .body(
+                    serde_json::to_string(&WorkSchema {
+                        orig_url: url.to_string(),
+                        result_url: url.to_string(),
+                        success: false,
+                        links: None,
+                    })
+                    .map_err(|e| ScrapeError::Unknown(e.into()))?,
+                )
                 .send()
-                .await?;
+                .await
+                .map_err(|e| ScrapeError::Api(Some(e)))?;
+
+            return Err(result.err().unwrap());
         }
     }
 
@@ -199,7 +236,8 @@ async fn main() -> anyhow::Result<()> {
                 }
 
                 if let Err(e) = try_work(&client, &driver, &config).await {
-                    eprintln!("error: {}", e);
+                    eprintln!("Error: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 }
 
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

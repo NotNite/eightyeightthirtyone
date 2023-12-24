@@ -329,6 +329,7 @@ dependencies = [
  "sha2",
  "texting_robots",
  "thirtyfour",
+ "thiserror",
  "tokio",
  "url",
 ]
