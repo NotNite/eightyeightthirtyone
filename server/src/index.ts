@@ -22,9 +22,12 @@ await fillQueue();
 await pruneQueue();
 
 function validateUrl(url: string) {
+  const blacklistedHosts = ["youtube.com"];
   try {
     const uri = new URL(url);
     if (!["http:", "https:"].includes(uri.protocol)) return false;
+    if (blacklistedHosts.some((host) => uri.hostname.endsWith(host)))
+      return false;
   } catch (e) {
     return false;
   }
@@ -72,8 +75,6 @@ async function fillQueue() {
 }
 
 async function pruneQueue() {
-  const blacklistedHosts = ["www.youtube.com", "youtube.com"];
-
   async function checkPage(url: string) {
     const page = await db.page.findUnique({
       where: {
@@ -85,6 +86,7 @@ async function pruneQueue() {
     if (page != null && page.lastScraped != null) {
       const diff = Date.now() - page.lastScraped.getTime();
       if (diff < 1000 * 60 * 60 * 24 * 7) {
+        //console.log("Skipping:", url);
         queue.splice(queue.indexOf(url), 1);
       }
     }
@@ -93,6 +95,7 @@ async function pruneQueue() {
   for (const url of [...queue]) {
     // No invalid URLs
     if (!validateUrl(url)) {
+      console.log("Invalid URL:", url);
       queue.splice(queue.indexOf(url), 1);
       continue;
     }
@@ -104,11 +107,6 @@ async function pruneQueue() {
       }
     });
     if (redirect != null) checkPage(redirect.to);
-
-    const host = hostname(url);
-    if (blacklistedHosts.some((x) => host?.endsWith(x))) {
-      queue.splice(queue.indexOf(url), 1);
-    }
   }
 
   queue = Array.from(new Set(queue));
@@ -212,7 +210,10 @@ router.post("/work", async (ctx) => {
   });
 
   for (const link of data.links) {
-    if (!validateUrl(link.to)) continue;
+    if (!validateUrl(link.to)) {
+      console.log("Invalid URL:", link.to);
+      continue;
+    }
 
     const redirect = await db.redirect.findUnique({
       where: {
@@ -221,7 +222,11 @@ router.post("/work", async (ctx) => {
     });
 
     const url = redirect == null ? link.to : redirect.to;
-    if (!validateUrl(url)) continue;
+    if (!validateUrl(url)) {
+      console.log("Invalid redirect:", url);
+      continue;
+    }
+
     const pageHost = hostname(url);
     if (pageHost == null) continue;
 
@@ -348,7 +353,11 @@ router.get("/graph", async (ctx) => {
 });
 
 app.use(bodyParser()).use(router.routes()).use(router.allowedMethods());
-app.listen(3000);
+
+const portStr = process.env.PORT ?? "3000";
+let port = parseInt(portStr);
+if (isNaN(port)) port = 3000;
+app.listen(port);
 console.log(":thumbsup:");
 
 export {};
