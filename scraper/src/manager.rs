@@ -19,7 +19,7 @@ impl Manager {
         for (host, data) in &manager.graph.domains {
             for link in &data.links {
                 let url = manager.graph.redirects.get(&link.url).unwrap_or(&link.url);
-                if !manager.should_be_purged(url.clone()) {
+                if !manager.should_be_purged(url.clone()) && manager.should_be_queued(url.clone()) {
                     if let Ok(Ok(uri)) = url::Url::parse(host).map(|x| x.join(url)) {
                         manager.queue.push(uri.to_string());
                     }
@@ -76,15 +76,14 @@ impl Manager {
         }
 
         for link in &info.links {
-            if !self.graph.domains.contains_key(&link.url) {
+            if !self.graph.domains.contains_key(&link.url)
+                && self.should_be_queued(link.url.clone())
+            {
                 if let Ok(Ok(uri)) = url::Url::parse(&real_url).map(|x| x.join(&link.url)) {
                     self.queue.push(uri.to_string());
                 }
             }
         }
-
-        self.queue.sort();
-        self.queue.dedup();
 
         self.graph.domains.insert(real_url, info);
         self.write().ok();
@@ -111,12 +110,52 @@ impl Manager {
 
         self.queue.dedup();
         for entry in self.queue.clone() {
-            if self.should_be_purged(entry.clone()) {
+            if self.should_be_purged(entry.clone()) || !self.should_be_queued(entry.clone()) {
                 self.queue.retain(|x| x != &entry);
             }
         }
 
         self.write().ok();
+    }
+
+    fn should_be_queued(&self, url: String) -> bool {
+        let should_refetch_empty_sites = false;
+
+        if should_refetch_empty_sites
+            && self.graph.domains.contains_key(&url)
+            && self.graph.domains.get(&url).unwrap().links.is_empty()
+        {
+            return true;
+        }
+
+        if self.graph.visited.contains_key(&url) {
+            let timestamp = self.graph.visited[&url];
+            let now = chrono::Utc::now().timestamp() as usize;
+            let diff = now - timestamp;
+            if diff < 60 * 60 * 24 * 7 {
+                return false;
+            }
+        }
+
+        if let Some(redirect) = self.graph.redirects.get(&url) {
+            if should_refetch_empty_sites
+                && self.graph.domains.contains_key(redirect)
+                && self.graph.domains[redirect].links.is_empty()
+            {
+                return true;
+            }
+
+            if self.graph.visited.contains_key(redirect) {
+                let timestamp = self.graph.visited[redirect];
+                let now = chrono::Utc::now().timestamp() as usize;
+                let diff = now - timestamp;
+                if diff < 60 * 60 * 24 * 7 {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 
     fn should_be_purged(&self, url: String) -> bool {
@@ -131,11 +170,18 @@ impl Manager {
             return true;
         }
 
-        if self.graph.visited.contains_key(&url) {
-            let timestamp = self.graph.visited[&url];
-            let now = chrono::Utc::now().timestamp() as usize;
-            let diff = now - timestamp;
-            if diff > 60 * 60 * 24 * 7 {
+        if let Some(redirect) = self.graph.redirects.get(&url) {
+            if self.graph.domains.contains_key(redirect)
+                && self.graph.domains[redirect].links.len() == 1
+                && self.graph.domains[redirect].links[0].url == url
+            {
+                return true;
+            }
+        }
+
+        // oh god stop jesus christ
+        if let Ok(url) = url::Url::parse(&url) {
+            if url.host_str() == Some("youtube.com") {
                 return true;
             }
         }
