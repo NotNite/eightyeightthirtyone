@@ -1,23 +1,32 @@
 import { useWindowSize } from "@react-hook/window-size";
 import React from "react";
-import ForceGraph, {
-  ForceGraphMethods,
+import ForceGraph2D, {
+  ForceGraphMethods as ForceGraphMethods2D,
   GraphData,
   LinkObject,
   NodeObject
 } from "react-force-graph-2d";
+import ForceGraph3D, {
+  ForceGraphMethods as ForceGraphMethods3D
+} from "react-force-graph-3d";
 
 // eslint-disable-next-line @typescript-eslint/ban-types
-type CustomNodeType = {};
+type CustomNodeType = { id: string; name: string; val: number };
 type CustomLinkType = { source: string; target: string };
 type CustomGraphData = GraphData<
   NodeObject<CustomNodeType>,
   LinkObject<CustomNodeType, CustomLinkType>
 >;
-type GraphRef = ForceGraphMethods<
+
+// Holy shit never do this ever
+type GraphRef = ForceGraphMethods2D<
   NodeObject<CustomNodeType>,
   LinkObject<CustomNodeType, CustomLinkType>
->;
+> &
+  ForceGraphMethods3D<
+    NodeObject<CustomNodeType>,
+    LinkObject<CustomNodeType, CustomLinkType>
+  >;
 
 type ScrapedGraph = {
   linksTo: Record<string, string[]>;
@@ -38,6 +47,7 @@ export default function App() {
   const [width, height] = useWindowSize();
   const [selected, setSelected] = React.useState<string | null>(null);
   const [separation, setSeparation] = React.useState<string[] | null>(null);
+  const [three, setThree] = React.useState(false);
 
   React.useEffect(() => {
     async function createGraphData() {
@@ -80,12 +90,38 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function pan(domain: string) {
+    const node = graphData?.nodes.find((x) => x.id === domain);
+    if (node == null) return;
+
+    if (three) {
+      const distance = 40;
+      const distRatio = 1 + distance / Math.hypot(node.x!, node.y!, node.z!);
+
+      graphRef.current?.cameraPosition(
+        {
+          x: node.x! * distRatio,
+          y: node.y! * distRatio,
+          z: node.z! * distRatio
+        },
+        {
+          x: node.x!,
+          y: node.y!,
+          z: node.z!
+        },
+        1000
+      );
+    } else {
+      graphRef.current?.centerAt(node.x!, node.y!, 1000);
+      graphRef.current?.zoom(8, 1000);
+    }
+  }
+
   function select(domain: string) {
     const node = graphData?.nodes.find((x) => x.id === domain);
     if (node == null) return;
     setSelected(node.id as string);
-    graphRef.current?.centerAt(node.x!, node.y!, 1000);
-    graphRef.current?.zoom(8, 1000);
+    pan(domain);
     setSeparation(null);
   }
 
@@ -142,9 +178,21 @@ export default function App() {
     return null;
   }
 
+  React.useEffect(() => {
+    const keydown = (e: KeyboardEvent) => {
+      if (e.key === " " && selected != null) pan(selected);
+    };
+
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
+  const Component = three ? ForceGraph3D : ForceGraph2D;
+
   return (
     <>
-      <ForceGraph
+      <Component
         graphData={graphData}
         enableNodeDrag={false}
         ref={graphRef}
@@ -163,11 +211,11 @@ export default function App() {
         onBackgroundClick={() => {
           setSelected(null);
         }}
-        nodeVisibility={(node) => {
+        nodeVisibility={(node: CustomNodeType) => {
           if (filtered.length === 0) return true;
           return filtered.includes(node.id as string);
         }}
-        linkVisibility={(link) => {
+        linkVisibility={(link: CustomLinkType) => {
           if (filtered.length === 0) return true;
           return (
             // @ts-expect-error cbf to type
@@ -186,10 +234,15 @@ export default function App() {
             <option key={x.id} value={x.id} />
           ))}
         </datalist>
+
+        <button onClick={() => setThree(!three)}>
+          {three ? "Set to 2D" : "Set to 3D"}
+        </button>
+
         <input
           type="range"
           min="0"
-          max="6"
+          max="25"
           step="1"
           defaultValue="0"
           onChange={(e) => {
