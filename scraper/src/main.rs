@@ -11,17 +11,18 @@ mod worker;
 #[derive(Deserialize, Debug)]
 pub struct Config {
     hosts: Vec<String>,
+    initial_hosts: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let manager = Manager::new();
-    let manager = Arc::new(Mutex::new(manager));
-    let mut tasks = vec![];
-
     let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
     let config = std::fs::read_to_string(config_path)?;
     let config: Config = serde_json::from_str(&config)?;
+
+    let manager = Manager::new(config.initial_hosts);
+    let manager = Arc::new(Mutex::new(manager));
+    let mut tasks = vec![];
 
     for host in config.hosts {
         let mut caps = DesiredCapabilities::chrome();

@@ -6,9 +6,9 @@ pub struct Manager {
 }
 
 impl Manager {
-    pub fn new() -> Self {
+    pub fn new(queue: Vec<String>) -> Self {
         let mut manager = Self {
-            queue: vec!["https://notnite.com/".to_string()],
+            queue,
             graph: Graph::default(),
         };
 
