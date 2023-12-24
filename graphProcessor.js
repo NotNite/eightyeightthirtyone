@@ -48,13 +48,18 @@ function addImage(src, dest) {
 for (const [domain, data] of Object.entries(graph.domains)) {
   const domainHost = hostname(redirect(domain));
   for (const link of data.links) {
-    const linkHostname = hostname(redirect(link.url), domain);
-    if (domainHost === "" || linkHostname === "") continue;
-    addLink(domainHost, linkHostname);
-    addImage(linkHostname, {
-      image: new URL(link.image, domain).toString(),
-      image_path: link.image_path
-    });
+    try {
+      const fixedUrl = new URL(link.url, domain).toString();
+      const linkHostname = hostname(redirect(fixedUrl), domain);
+      if (domainHost === "" || linkHostname === "") continue;
+      addLink(domainHost, linkHostname);
+      addImage(linkHostname, {
+        image: new URL(link.image, domain).toString(),
+        image_path: link.image_path
+      });
+    } catch {
+      continue;
+    }
   }
 }
 
