@@ -5,7 +5,7 @@ import ForceGraph, {
   GraphData,
   LinkObject,
   NodeObject
-} from "react-force-graph-2d";
+} from "react-force-graph-3d";
 
 /* eslint-disable @typescript-eslint/ban-types */
 type CustomNodeType = {};
@@ -150,8 +150,18 @@ export default function App() {
     const node = graphData?.nodes.find((x) => x.id === domain);
     if (node == null) return;
     setSelected(node.id as string);
-    graphRef.current?.centerAt(node.x!, node.y!, 1000);
-    graphRef.current?.zoom(8, 1000);
+
+    const distance = 40;
+    const distRatio = 1 + distance / Math.hypot(node.x!, node.y!, node.z!);
+    graphRef.current?.cameraPosition(
+      {
+        x: node.x! * distRatio,
+        y: node.y! * distRatio,
+        z: node.z! * distRatio
+      },
+      { x: node.x!, y: node.y!, z: node.z! },
+      1000
+    );
   }
 
   const color = "grey";
@@ -193,7 +203,7 @@ export default function App() {
         linkColor={colorChooser}
         linkDirectionalArrowColor={colorChooser}
         onNodeClick={(node) => {
-          setSelected(node.id as string);
+          select(node.id as string);
         }}
         onBackgroundClick={() => {
           setSelected(null);
