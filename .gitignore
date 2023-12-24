@@ -28,4 +28,5 @@ dist-ssr
 
 graph.json
 graph.bak.json
-public/graph.json
+target/
+images/

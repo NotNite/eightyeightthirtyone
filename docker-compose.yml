@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  selenium-one:
+    image: selenium/standalone-chrome:4.16.1-20231219
+    shm_size: 2gb
+    ports:
+      - 4444:4444
+
+  selenium-two:
+    image: selenium/standalone-chrome:4.16.1-20231219
+    shm_size: 2gb
+    ports:
+      - 4445:4444

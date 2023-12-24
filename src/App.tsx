@@ -19,20 +19,73 @@ type GraphRef = ForceGraphMethods<
   LinkObject<CustomNodeType, CustomLinkType>
 >;
 
-type ScrapedGraph = {
-  [host: string]: string[];
+type Link = {
+  url: string;
+  image: string;
+  image_path: string;
 };
 
+type DomainInfo = {
+  links: Link[];
+};
+
+type ScrapedGraph = {
+  domains: Record<string, DomainInfo>;
+  redirects: Record<string, string>;
+  visited: Record<string, number>;
+};
+
+function hostname(url: string) {
+  return new URL(url).hostname;
+}
+
 export default function App() {
-  const graphRef = React.useRef<GraphRef>();
   const [origGraph, setOrigGraph] = React.useState<ScrapedGraph | undefined>(
     undefined
   );
+  const [redirects, setRedirects] = React.useState<
+    Map<string, string> | undefined
+  >(undefined);
   const [graphData, setGraphData] = React.useState<CustomGraphData | undefined>(
     undefined
   );
-  const [selected, setSelected] = React.useState<string | null>(null);
+
+  const graphRef = React.useRef<GraphRef>();
   const [width, height] = useWindowSize();
+  const [selected, setSelected] = React.useState<string | null>(null);
+  const [linkedFrom, setLinkedFrom] = React.useState<string[]>([]);
+  const [linksTo, setLinksTo] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (origGraph != null && selected != null && redirects != null) {
+      let linkedTo: string[] = [];
+      for (const [domain, data] of Object.entries(origGraph.domains)) {
+        if (hostname(domain) === selected) {
+          linkedTo = linkedTo.concat(data.links.map((x) => hostname(x.url)));
+        }
+      }
+      setLinksTo(
+        Array.from(new Set(linkedTo)).map((x) => redirects.get(x) ?? x)
+      );
+
+      const redirectsToSelected = Object.entries(origGraph.redirects)
+        .filter((x) => hostname(x[1]) === selected)
+        .map((x) => hostname(x[0]));
+
+      const linkedFrom: string[] = [];
+
+      for (const [domain, data] of Object.entries(origGraph.domains)) {
+        const realDomain = redirects.get(hostname(domain)) ?? hostname(domain);
+        for (const link of data.links) {
+          const realLink = hostname(link.url);
+          if (realLink === selected || redirectsToSelected.includes(realLink)) {
+            linkedFrom.push(realDomain);
+          }
+        }
+      }
+      setLinkedFrom(Array.from(new Set(linkedFrom)));
+    }
+  }, [origGraph, selected, redirects]);
 
   React.useEffect(() => {
     async function createGraphData() {
@@ -41,22 +94,38 @@ export default function App() {
       );
       setOrigGraph(graph);
 
-      const domains = Array.from(
-        new Set(
-          Object.entries(graph)
-            .map((x) => x[1].concat([x[0]]))
+      const redirects = new Map<string, string>();
+      for (const [oldUrl, newUrl] of Object.entries(graph.redirects)) {
+        redirects.set(hostname(oldUrl), hostname(newUrl));
+      }
+      setRedirects(redirects);
+
+      let domains = Object.keys(graph.domains);
+      domains = domains
+        .concat(
+          Object.values(graph.domains)
+            .map((x) => x.links)
             .flat()
+            .map((x) => x.url)
         )
-      );
+        .map(hostname)
+        .map((x) => redirects.get(x) ?? x);
+      domains = [...new Set(domains)];
 
       const nodes: CustomNodeType[] = domains.map((domain) => ({
         id: domain,
         name: domain,
         val: 1
       }));
-      const links: CustomLinkType[] = Object.entries(graph)
+      const links: CustomLinkType[] = Object.entries(graph.domains)
         .map(([source, targets]) =>
-          targets.map((target) => ({ source, target }))
+          targets.links.map((target) => {
+            const targetHostname = hostname(target.url);
+            return {
+              source: hostname(source),
+              target: redirects.get(targetHostname) ?? targetHostname
+            };
+          })
         )
         .flat();
       setGraphData({ nodes, links });
@@ -85,8 +154,15 @@ export default function App() {
     if (selected != null && source === selected) return "aqua";
     if (selected != null && target === selected) return "blue";
 
-    const sourceToTarget = origGraph[source]?.includes(target) === true;
-    const targetToSource = origGraph[target]?.includes(source) === true;
+    const isLinkedTo = (source: string, target: string) =>
+      origGraph.domains[source]?.links.find(
+        (x) =>
+          hostname(x.url) === target ||
+          redirects?.get(hostname(x.url)) === target
+      ) != null;
+
+    const sourceToTarget = isLinkedTo(source, target);
+    const targetToSource = isLinkedTo(target, source);
     if (sourceToTarget && targetToSource) return "white";
     return color;
   };
@@ -143,25 +219,20 @@ export default function App() {
 
             <span>Links to:</span>
             <ul>
-              {origGraph != null &&
-                origGraph[selected] != null &&
-                origGraph[selected].map((x, i) => (
-                  <li key={i}>
-                    <button onClick={() => select(x)}>{x}</button>
-                  </li>
-                ))}
+              {linksTo.map((x, i) => (
+                <li key={i}>
+                  <button onClick={() => select(x)}>{x}</button>
+                </li>
+              ))}
             </ul>
 
             <span>Linked from:</span>
             <ul>
-              {origGraph != null &&
-                Object.entries(origGraph)
-                  .filter((x) => x[1].includes(selected))
-                  .map((x, i) => (
-                    <li key={i}>
-                      <button onClick={() => select(x[0])}>{x[0]}</button>
-                    </li>
-                  ))}
+              {linkedFrom.map((x, i) => (
+                <li key={i}>
+                  <button onClick={() => select(x)}>{x}</button>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

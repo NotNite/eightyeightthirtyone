@@ -1,0 +1,19 @@
+[package]
+name = "eightyeightthirtyone"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.76"
+async-recursion = "1.0.5"
+chrono = "0.4.31"
+futures = "0.3.29"
+image = "0.24.7"
+reqwest = "0.11.23"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_json = "1.0.108"
+sha2 = "0.10.8"
+texting_robots = "0.2.2"
+thirtyfour = "0.31.0"
+tokio = { version = "1.35.1", features = ["full"] }
+url = "2.5.0"
