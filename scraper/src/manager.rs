@@ -15,13 +15,15 @@ impl Manager {
         manager.read().ok();
         manager.purge();
 
-        for data in manager.graph.domains.values() {
+        for (host, data) in &manager.graph.domains {
             for link in &data.links {
                 let url = manager.graph.redirects.get(&link.url).unwrap_or(&link.url);
                 if !manager.graph.visited.contains_key(url)
                     && !manager.should_be_purged(url.clone())
                 {
-                    manager.queue.push(url.clone());
+                    if let Ok(Ok(uri)) = url::Url::parse(host).map(|x| x.join(url)) {
+                        manager.queue.push(uri.to_string());
+                    }
                 }
             }
         }
@@ -72,7 +74,9 @@ impl Manager {
 
         for link in &info.links {
             if !self.graph.domains.contains_key(&link.url) {
-                self.queue.push(link.url.clone());
+                if let Ok(Ok(uri)) = url::Url::parse(&real_url).map(|x| x.join(&link.url)) {
+                    self.queue.push(uri.to_string());
+                }
             }
         }
 
