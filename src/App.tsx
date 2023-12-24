@@ -182,7 +182,9 @@ export default function App() {
 
       <div className="controls">
         <datalist id="domains">
-          {graphData?.nodes.map((x) => <option key={x.id} value={x.id} />)}
+          {graphData?.nodes.map((x) => (
+            <option key={x.id} value={x.id} />
+          ))}
         </datalist>
         <input
           type="range"
@@ -224,9 +226,9 @@ export default function App() {
         />
 
         <span className="by">
-          A{" "}
-          <a href="https://github.com/NotNite/eightyeightthirtyone">project</a>{" "}
-          by{" "}
+          <a href="https://github.com/NotNite/eightyeightthirtyone">
+            <img src="/88x31.png" alt="eightyeightthirty.one" />
+          </a>
           <a href="https://notnite.com/">
             <img src="/notnite.png" alt="notnite" />
           </a>
