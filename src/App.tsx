@@ -9,7 +9,7 @@ import ForceGraph, {
 
 /* eslint-disable @typescript-eslint/ban-types */
 type CustomNodeType = {};
-type CustomLinkType = {};
+type CustomLinkType = { source: string; target: string };
 type CustomGraphData = GraphData<
   NodeObject<CustomNodeType>,
   LinkObject<CustomNodeType, CustomLinkType>
@@ -54,6 +54,9 @@ export default function App() {
     undefined
   );
   const [filtered, setFiltered] = React.useState<string[]>([]);
+  const [linkedToCache, setLinkedToCache] = React.useState<{
+    [key: string]: string[];
+  }>({});
 
   const graphRef = React.useRef<GraphRef>();
   const [width, height] = useWindowSize();
@@ -140,10 +143,20 @@ export default function App() {
               .filter((x) => x != null) as CustomLinkType[]
         )
         .flat();
+
       setGraphData({ nodes, links });
+
+      for (const link of links) {
+        if (linkedToCache[link.source] == null) {
+          linkedToCache[link.source] = [];
+        }
+        linkedToCache[link.source].push(link.target);
+      }
+      setLinkedToCache(linkedToCache);
     }
 
     createGraphData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function select(domain: string) {
@@ -167,12 +180,7 @@ export default function App() {
     if (selected != null && target === selected) return "blue";
 
     const isLinkedTo = (source: string, target: string) =>
-      origGraph.domains[source]?.links.find(
-        (x) =>
-          hostname(x.url) === target ||
-          redirects?.get(hostname(x.url)) === target
-      ) != null;
-
+      linkedToCache[source]?.includes(target) ?? false;
     const sourceToTarget = isLinkedTo(source, target);
     const targetToSource = isLinkedTo(target, source);
     if (sourceToTarget && targetToSource) return "white";
@@ -232,18 +240,8 @@ export default function App() {
               let domains = [selected];
 
               for (let i = value; i > 0; i--) {
-                const edges = graphData.links.filter(
-                  (x) =>
-                    // @ts-expect-error cbf to type
-                    domains.includes(x.source.id as string) ||
-                    // @ts-expect-error cbf to type
-                    domains.includes(x.target.id as string)
-                );
-                for (const edge of edges) {
-                  // @ts-expect-error cbf to type
-                  domains.push(edge.source!.id as string);
-                  // @ts-expect-error cbf to type
-                  domains.push(edge.target!.id as string);
+                for (const domain of domains) {
+                  domains = domains.concat(linkedToCache[domain] ?? []);
                 }
 
                 domains = [...new Set(domains)];
