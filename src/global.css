@@ -46,3 +46,7 @@ body {
 a {
   color: white;
 }
+
+img {
+  image-rendering: pixelated;
+}
