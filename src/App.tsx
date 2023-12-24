@@ -63,6 +63,7 @@ export default function App() {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [linkedFrom, setLinkedFrom] = React.useState<string[]>([]);
   const [linksTo, setLinksTo] = React.useState<string[]>([]);
+  const [images, setImages] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (origGraph != null && selected != null && redirects != null) {
@@ -73,7 +74,9 @@ export default function App() {
         }
       }
       setLinksTo(
-        Array.from(new Set(linkedTo)).map((x) => redirects.get(x) ?? x)
+        Array.from(new Set(linkedTo))
+          .map((x) => redirects.get(x) ?? x)
+          .filter((x) => x !== "")
       );
 
       const redirectsToSelected = Object.entries(origGraph.redirects)
@@ -81,7 +84,6 @@ export default function App() {
         .map((x) => hostname(x[0]));
 
       const linkedFrom: string[] = [];
-
       for (const [domain, data] of Object.entries(origGraph.domains)) {
         const realDomain = redirects.get(hostname(domain)) ?? hostname(domain);
         for (const link of data.links) {
@@ -91,7 +93,7 @@ export default function App() {
           }
         }
       }
-      setLinkedFrom(Array.from(new Set(linkedFrom)));
+      setLinkedFrom(Array.from(new Set(linkedFrom)).filter((x) => x !== ""));
     }
   }, [origGraph, selected, redirects]);
 
@@ -158,6 +160,28 @@ export default function App() {
     createGraphData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  React.useEffect(() => {
+    if (graphData == null || selected == null || redirects == null) return;
+
+    const images: [string, string][] = [];
+    for (const data of Object.values(origGraph!.domains)) {
+      for (const link of data.links) {
+        if (images.find((x) => x[1] === link.image_path) != null) continue;
+        let url = hostname(link.url);
+        if (redirects.has(url)) {
+          url = redirects.get(url)!;
+        }
+
+        if (url === selected) {
+          images.push([link.image, link.image_path]);
+        }
+      }
+    }
+
+    setImages(images.map((x) => x[0]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   function select(domain: string) {
     const node = graphData?.nodes.find((x) => x.id === domain);
@@ -293,6 +317,15 @@ export default function App() {
               {linkedFrom.map((x, i) => (
                 <li key={i}>
                   <button onClick={() => select(x)}>{x}</button>
+                </li>
+              ))}
+            </ul>
+
+            <span>Badges:</span>
+            <ul>
+              {images.map((x, i) => (
+                <li key={i}>
+                  <img src={x} alt={x} />
                 </li>
               ))}
             </ul>

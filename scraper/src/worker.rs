@@ -125,9 +125,6 @@ impl Worker {
                         manager.mark_visited(url.clone());
                         manager.mark_visited(real_url.clone());
                         manager.save(real_url, data);
-                    } else {
-                        let mut manager = manager.lock().await;
-                        manager.mark_visited(url.clone());
                     }
                 } else {
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
