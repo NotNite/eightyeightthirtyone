@@ -37,6 +37,7 @@ export default function App() {
   const graphRef = React.useRef<GraphRef>();
   const [width, height] = useWindowSize();
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [separation, setSeparation] = React.useState<string[] | null>(null);
 
   React.useEffect(() => {
     async function createGraphData() {
@@ -85,6 +86,7 @@ export default function App() {
     setSelected(node.id as string);
     graphRef.current?.centerAt(node.x!, node.y!, 1000);
     graphRef.current?.zoom(8, 1000);
+    setSeparation(null);
   }
 
   const color = "grey";
@@ -96,6 +98,13 @@ export default function App() {
     // @ts-expect-error cbf to type
     const target = link.target.id as string;
 
+    if (
+      separation != null &&
+      separation.includes(source) &&
+      separation.indexOf(source) === separation.indexOf(target) - 1
+    )
+      return "red";
+
     if (selected != null && source === selected) return "aqua";
     if (selected != null && target === selected) return "blue";
 
@@ -106,6 +115,27 @@ export default function App() {
     if (sourceToTarget && targetToSource) return "white";
     return color;
   };
+
+  function bfs(from: string, to: string) {
+    const visited = new Set<string>();
+    const queue = [[from]];
+
+    while (queue.length) {
+      const path = queue.shift()!;
+      const node = path[path.length - 1];
+
+      if (node === to) return path;
+
+      if (!visited.has(node)) {
+        visited.add(node);
+        for (const next of origGraph!.linksTo[node] ?? []) {
+          queue.push([...path, next]);
+        }
+      }
+    }
+
+    return null;
+  }
 
   return (
     <>
@@ -144,6 +174,12 @@ export default function App() {
       />
 
       <div className="controls">
+        <datalist id="domains">
+          {graphData?.nodes.map((x) => (
+            <option key={x.id} value={x.id} />
+          ))}
+        </datalist>
+
         <input
           type="range"
           min="0"
@@ -174,6 +210,7 @@ export default function App() {
 
         <input
           type="text"
+          list="domains"
           placeholder="Search"
           onKeyDown={(e) => {
             if (e.key === "Enter" && graphData != null) {
@@ -225,6 +262,28 @@ export default function App() {
                 </li>
               ))}
             </ul>
+
+            <span>Separation:</span>
+            <br />
+            <input
+              type="text"
+              list="domains"
+              placeholder="Search"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && graphData != null) {
+                  setSeparation(bfs(selected, e.currentTarget.value));
+                }
+              }}
+            />
+            {separation != null && (
+              <ul>
+                {separation.map((x, i) => (
+                  <li key={i}>
+                    <button onClick={() => select(x)}>{x}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
