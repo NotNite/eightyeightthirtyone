@@ -53,6 +53,7 @@ export default function App() {
   const [graphData, setGraphData] = React.useState<CustomGraphData | undefined>(
     undefined
   );
+  const [filtered, setFiltered] = React.useState<string[]>([]);
 
   const graphRef = React.useRef<GraphRef>();
   const [width, height] = useWindowSize();
@@ -197,11 +198,62 @@ export default function App() {
         onBackgroundClick={() => {
           setSelected(null);
         }}
+        nodeVisibility={(node) => {
+          if (filtered.length === 0) return true;
+          return filtered.includes(node.id as string);
+        }}
+        linkVisibility={(link) => {
+          if (filtered.length === 0) return true;
+          return (
+            // @ts-expect-error cbf to type
+            filtered.includes(link.source!.id as string) &&
+            // @ts-expect-error cbf to type
+            filtered.includes(link.target!.id as string)
+          );
+        }}
         width={width}
         height={height}
       />
 
       <div className="controls">
+        <input
+          type="range"
+          min="0"
+          max="6"
+          step="1"
+          defaultValue="0"
+          onChange={(e) => {
+            if (selected == null || graphData == null) return;
+            const value = parseInt(e.currentTarget.value);
+
+            if (value === 0) {
+              setFiltered([]);
+            } else {
+              let domains = [selected];
+
+              for (let i = value; i > 0; i--) {
+                const edges = graphData.links.filter(
+                  (x) =>
+                    // @ts-expect-error cbf to type
+                    domains.includes(x.source.id as string) ||
+                    // @ts-expect-error cbf to type
+                    domains.includes(x.target.id as string)
+                );
+                for (const edge of edges) {
+                  // @ts-expect-error cbf to type
+                  domains.push(edge.source!.id as string);
+                  // @ts-expect-error cbf to type
+                  domains.push(edge.target!.id as string);
+                }
+
+                domains = [...new Set(domains)];
+              }
+
+              setFiltered(domains);
+            }
+          }}
+        />
+
         <input
           type="text"
           placeholder="Search"
@@ -211,6 +263,7 @@ export default function App() {
             }
           }}
         />
+
         <span className="by">
           A{" "}
           <a href="https://github.com/NotNite/eightyeightthirtyone">project</a>{" "}
