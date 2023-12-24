@@ -284,7 +284,7 @@ router.get("/graph", async (ctx) => {
     });
     const url = redirect == null ? page.url : redirect.to;
     const host = hostname(url);
-    if (host == null) continue;
+    if (host == null || host.trim() == "") continue;
     linksTo[host] = linksTo[host] ?? [];
 
     for (const link of links) {
@@ -295,7 +295,7 @@ router.get("/graph", async (ctx) => {
       });
       const dstUrl = redirect == null ? link.dstUrl : redirect.to;
       const dstHost = hostname(dstUrl);
-      if (dstHost == null) continue;
+      if (dstHost == null || dstHost.trim() === "") continue;
 
       linksTo[host].push(dstHost);
       if (linkedFrom[dstHost] == null) linkedFrom[dstHost] = [];
@@ -310,18 +310,19 @@ router.get("/graph", async (ctx) => {
       }
     }
 
-    const properImages = Object.entries(images).map(([host, images]) => {
-      return {
+    const properImages = Object.fromEntries(
+      Object.entries(images).map(([host, images]) => [
         host,
-        images: images.map((x) => x.url)
-      };
-    });
+        images.map((x) => x.url)
+      ])
+    );
 
-    ctx.body = {
+    ctx.body = JSON.stringify({
       linksTo,
       linkedFrom,
       images: properImages
-    };
+    });
+    ctx.response.type = "application/json";
   }
 });
 
