@@ -143,6 +143,8 @@ export default function App() {
         graphData={graphData}
         enableNodeDrag={false}
         ref={graphRef}
+        warmupTicks={60} // Simulate graph a bit before first draw
+        cooldownTime={5000}
         nodeAutoColorBy="id"
         linkHoverPrecision={30}
         linkDirectionalArrowLength={3.5}
@@ -175,11 +177,8 @@ export default function App() {
 
       <div className="controls">
         <datalist id="domains">
-          {graphData?.nodes.map((x) => (
-            <option key={x.id} value={x.id} />
-          ))}
+          {graphData?.nodes.map((x) => <option key={x.id} value={x.id} />)}
         </datalist>
-
         <input
           type="range"
           min="0"
