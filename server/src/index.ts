@@ -142,6 +142,9 @@ router.get("/work", async (ctx) => {
   await pruneQueue();
   ctx.body = queue.pop();
   console.log("Queue length:", queue.length);
+  if (queue.length <= 0) {
+    await fillQueue();
+  }
 });
 
 const LinkSchema = z.object({
