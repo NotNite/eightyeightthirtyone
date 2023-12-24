@@ -24,7 +24,8 @@ pub struct LinkSchema {
 pub struct WorkSchema {
     pub orig_url: String,
     pub result_url: String,
-    pub links: Vec<LinkSchema>,
+    pub success: bool,
+    pub links: Option<Vec<LinkSchema>>,
 }
 
 #[async_recursion::async_recursion]
@@ -115,7 +116,8 @@ async fn process(
     Ok(WorkSchema {
         orig_url: url.to_string(),
         result_url: current_url.to_string(),
-        links: result,
+        success: true,
+        links: Some(result),
     })
 }
 
@@ -137,15 +139,30 @@ async fn try_work(
 
     if !url.is_empty() {
         println!("Processing: {}", url);
-        let work = process(driver, &url, client).await?;
-        let work = serde_json::to_string(&work)?;
-        client
-            .post(&format!("{}/work", config.host))
-            .header("Content-Type", "application/json")
-            .header("Authorization", config.key.clone())
-            .body(work)
-            .send()
-            .await?;
+        if let Ok(work) = process(driver, &url, client).await {
+            let work = serde_json::to_string(&work)?;
+            client
+                .post(&format!("{}/work", config.host))
+                .header("Content-Type", "application/json")
+                .header("Authorization", config.key.clone())
+                .body(work)
+                .send()
+                .await?;
+        } else {
+            println!("Failed to process: {}", url);
+            client
+                .post(&format!("{}/work", config.host))
+                .header("Content-Type", "application/json")
+                .header("Authorization", config.key.clone())
+                .body(serde_json::to_string(&WorkSchema {
+                    orig_url: url.to_string(),
+                    result_url: url.to_string(),
+                    success: false,
+                    links: None,
+                })?)
+                .send()
+                .await?;
+        }
     }
 
     Ok(())

@@ -232,7 +232,8 @@ const LinkSchema = z.object({
 const WorkSchema = z.object({
   orig_url: z.string(),
   result_url: z.string(), // for redirects
-  links: z.array(LinkSchema)
+  success: z.boolean(),
+  links: z.optional(z.array(LinkSchema))
 });
 
 router.post("/work", async (ctx) => {
@@ -287,7 +288,12 @@ router.post("/work", async (ctx) => {
     }
   });
 
-  for (const link of data.links) {
+  if (!data.success) {
+    ctx.status = 204;
+    return;
+  }
+
+  for (const link of data.links!) {
     if (!validateUrl(link.to)) {
       console.log("Invalid URL:", link.to);
       continue;
