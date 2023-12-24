@@ -405,16 +405,30 @@ router.get("/graph", async (ctx) => {
       }
     }
 
+    const properLinksTo = Object.fromEntries(
+      Object.entries(linksTo).map(([host, links]) => [
+        host,
+        Array.from(new Set(links))
+      ])
+    );
+
+    const properLinkedFrom = Object.fromEntries(
+      Object.entries(linkedFrom).map(([host, links]) => [
+        host,
+        Array.from(new Set(links))
+      ])
+    );
+
     const properImages = Object.fromEntries(
       Object.entries(images).map(([host, images]) => [
         host,
-        images.map((x) => x.url)
+        Array.from(new Set(images.map((x) => x.url)))
       ])
     );
 
     ctx.body = JSON.stringify({
-      linksTo,
-      linkedFrom,
+      linksTo: properLinksTo,
+      linkedFrom: properLinkedFrom,
       images: properImages
     });
     ctx.response.type = "application/json";
