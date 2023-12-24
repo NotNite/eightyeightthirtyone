@@ -360,34 +360,25 @@ router.get("/graph", async (ctx) => {
   }
 
   const pages = await db.page.findMany({});
+  const links = await db.link.findMany({});
+  const redirects = await db.redirect.findMany({});
 
   const linksTo: Record<string, string[]> = {};
   const linkedFrom: Record<string, string[]> = {};
   const images: Record<string, { url: string; hash: string }[]> = {};
 
   for (const page of pages) {
-    const links = await db.link.findMany({
-      where: {
-        srcUrl: page.url
-      }
-    });
-
-    const redirect = await db.redirect.findUnique({
-      where: {
-        from: page.url
-      }
-    });
+    const pageLinks = links.filter((link) => link.srcUrl === page.url);
+    const redirect = redirects.find((redirect) => redirect.from === page.url);
     const url = redirect == null ? page.url : redirect.to;
     const host = hostname(url);
     if (host == null || host.trim() == "") continue;
     linksTo[host] = linksTo[host] ?? [];
 
-    for (const link of links) {
-      const redirect = await db.redirect.findUnique({
-        where: {
-          from: link.dstUrl
-        }
-      });
+    for (const link of pageLinks) {
+      const redirect = redirects.find(
+        (redirect) => redirect.from === link.dstUrl
+      );
       const dstUrl = redirect == null ? link.dstUrl : redirect.to;
       const dstHost = hostname(dstUrl);
       if (dstHost == null || dstHost.trim() === "") continue;
