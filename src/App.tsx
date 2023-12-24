@@ -40,9 +40,9 @@ export default function App() {
 
   React.useEffect(() => {
     async function createGraphData() {
-      const graph: ScrapedGraph = await fetch("/graph.json").then((x) =>
-        x.json()
-      );
+      const graph: ScrapedGraph = await fetch(
+        "/graph.json?t=" + Date.now()
+      ).then((x) => x.json());
       setOrigGraph(graph);
 
       let domains = Object.keys(graph.linksTo)
