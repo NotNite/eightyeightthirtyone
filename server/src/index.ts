@@ -233,7 +233,7 @@ const WorkSchema = z.object({
   orig_url: z.string(),
   result_url: z.string(), // for redirects
   success: z.boolean(),
-  links: z.optional(z.array(LinkSchema))
+  links: z.nullable(z.array(LinkSchema))
 });
 
 router.post("/work", async (ctx) => {
