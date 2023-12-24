@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  selenium-one:
+  selenium:
     image: selenium/standalone-chrome:4.16.1-20231219
     shm_size: 2gb
     ports:

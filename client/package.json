@@ -1,7 +1,6 @@
 {
-  "name": "eightyeightthirtyone",
+  "name": "client",
   "version": "1.0.0",
-  "author": "NotNite <hi@notnite.com>",
   "license": "MIT",
   "type": "module",
   "scripts": {

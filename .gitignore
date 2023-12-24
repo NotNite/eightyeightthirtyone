@@ -30,3 +30,5 @@ graph.json
 graph.bak.json
 target/
 images/
+database.db*
+.env*
