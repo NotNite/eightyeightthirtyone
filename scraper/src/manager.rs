@@ -15,6 +15,17 @@ impl Manager {
         manager.read().ok();
         manager.purge();
 
+        for data in manager.graph.domains.values() {
+            for link in &data.links {
+                let url = manager.graph.redirects.get(&link.url).unwrap_or(&link.url);
+                if !manager.graph.visited.contains_key(url)
+                    && !manager.should_be_purged(url.clone())
+                {
+                    manager.queue.push(url.clone());
+                }
+            }
+        }
+
         manager
     }
 

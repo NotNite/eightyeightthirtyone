@@ -36,7 +36,11 @@ type ScrapedGraph = {
 };
 
 function hostname(url: string) {
-  return new URL(url).hostname;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 export default function App() {
@@ -110,7 +114,7 @@ export default function App() {
         )
         .map(hostname)
         .map((x) => redirects.get(x) ?? x);
-      domains = [...new Set(domains)];
+      domains = [...new Set(domains)].filter((x) => x !== "");
 
       const nodes: CustomNodeType[] = domains.map((domain) => ({
         id: domain,
@@ -118,14 +122,21 @@ export default function App() {
         val: 1
       }));
       const links: CustomLinkType[] = Object.entries(graph.domains)
-        .map(([source, targets]) =>
-          targets.links.map((target) => {
-            const targetHostname = hostname(target.url);
-            return {
-              source: hostname(source),
-              target: redirects.get(targetHostname) ?? targetHostname
-            };
-          })
+        .map(
+          ([source, targets]) =>
+            targets.links
+              .map((target) => {
+                const sourceHostname = hostname(source);
+                let targetHostname = hostname(target.url);
+                targetHostname =
+                  redirects.get(targetHostname) ?? targetHostname;
+                if (sourceHostname === "" || targetHostname === "") return null;
+                return {
+                  source: sourceHostname,
+                  target: targetHostname
+                };
+              })
+              .filter((x) => x != null) as CustomLinkType[]
         )
         .flat();
       setGraphData({ nodes, links });
