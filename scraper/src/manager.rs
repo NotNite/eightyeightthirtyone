@@ -83,6 +83,9 @@ impl Manager {
             }
         }
 
+        self.queue.sort();
+        self.queue.dedup();
+
         self.graph.domains.insert(real_url, info);
         self.write().ok();
         self.purge();
@@ -126,11 +129,6 @@ impl Manager {
             && self.graph.domains[&url].links[0].url == url
         {
             return true;
-        }
-
-        // Scraper did an oopsie
-        if self.graph.domains.contains_key(&url) && self.graph.domains[&url].links.is_empty() {
-            return false;
         }
 
         if self.graph.visited.contains_key(&url) {
