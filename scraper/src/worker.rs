@@ -3,7 +3,7 @@ use crate::{
     types::{DomainInfo, Link, USER_AGENT},
 };
 use sha2::Digest;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use texting_robots::{get_robots_url, Robot};
 use thirtyfour::{fantoccini::wd::Locator, By, WebDriver, WebElement};
 use tokio::sync::Mutex;
@@ -13,6 +13,7 @@ pub struct Worker {
     driver: WebDriver,
     id: String,
     shutdown_rx: flume::Receiver<()>,
+    reqwest_client: reqwest::Client,
 }
 
 #[async_recursion::async_recursion]
@@ -27,8 +28,8 @@ async fn recursive_children(el: &WebElement) -> anyhow::Result<Vec<WebElement>> 
     Ok(children)
 }
 
-async fn image_is_88x31(url: &str) -> anyhow::Result<String> {
-    let response = reqwest::get(url).await?;
+async fn image_is_88x31(url: &str, reqwest_client: &reqwest::Client) -> anyhow::Result<String> {
+    let response = reqwest_client.get(url).send().await?;
     let bytes = response.bytes().await?;
     let image = image::load_from_memory(&bytes)?;
 
@@ -63,7 +64,11 @@ async fn check_robots_txt(url: &str) -> anyhow::Result<bool> {
     Ok(robots.allowed(url))
 }
 
-async fn process(driver: &WebDriver, url: &str) -> anyhow::Result<(String, DomainInfo)> {
+async fn process(
+    driver: &WebDriver,
+    url: &str,
+    reqwest_client: &reqwest::Client,
+) -> anyhow::Result<(String, DomainInfo)> {
     if !check_robots_txt(url).await.unwrap_or_default() {
         anyhow::bail!("robots.txt disallowed");
     }
@@ -83,7 +88,7 @@ async fn process(driver: &WebDriver, url: &str) -> anyhow::Result<(String, Domai
                     if let Some(src) = child.attr("src").await? {
                         let src = parsed_url.join(&src)?.to_string();
 
-                        if let Ok(path) = image_is_88x31(&src).await {
+                        if let Ok(path) = image_is_88x31(&src, reqwest_client).await {
                             result.push(Link {
                                 url: href.clone(),
                                 image: src,
@@ -112,6 +117,12 @@ impl Worker {
             driver,
             id,
             shutdown_rx,
+            reqwest_client: reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(5))
+                .timeout(Duration::from_secs(10))
+                .user_agent(USER_AGENT)
+                .build()
+                .unwrap(),
         }
     }
 
@@ -120,6 +131,7 @@ impl Worker {
         let driver = self.driver.clone();
         let id = self.id.clone();
         let shutdown_rx = self.shutdown_rx.clone();
+        let reqwest_client = self.reqwest_client.clone();
 
         tokio::spawn(async move {
             loop {
@@ -135,7 +147,7 @@ impl Worker {
 
                 if let Some(url) = url {
                     println!("[{}] processing: {}", id, url);
-                    if let Ok((real_url, data)) = process(&driver, &url).await {
+                    if let Ok((real_url, data)) = process(&driver, &url, &reqwest_client).await {
                         let mut manager = manager.lock().await;
                         if url != real_url {
                             manager.add_redirect(url.clone(), real_url.clone());
