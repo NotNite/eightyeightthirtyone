@@ -74,13 +74,7 @@ async function fillQueue() {
 async function pruneQueue() {
   const blacklistedHosts = ["www.youtube.com", "youtube.com"];
 
-  for (const url of [...queue]) {
-    // No invalid URLs
-    if (!validateUrl(url)) {
-      queue.splice(queue.indexOf(url), 1);
-      continue;
-    }
-
+  async function checkPage(url: string) {
     const page = await db.page.findUnique({
       where: {
         url
@@ -94,6 +88,22 @@ async function pruneQueue() {
         queue.splice(queue.indexOf(url), 1);
       }
     }
+  }
+
+  for (const url of [...queue]) {
+    // No invalid URLs
+    if (!validateUrl(url)) {
+      queue.splice(queue.indexOf(url), 1);
+      continue;
+    }
+
+    checkPage(url);
+    const redirect = await db.redirect.findUnique({
+      where: {
+        from: url
+      }
+    });
+    if (redirect != null) checkPage(redirect.to);
 
     const host = hostname(url);
     if (blacklistedHosts.some((x) => host?.endsWith(x))) {
@@ -256,8 +266,8 @@ router.post("/work", async (ctx) => {
       });
     }
 
-    if (!queue.includes(link.to)) {
-      queue.push(link.to);
+    if (!queue.includes(url)) {
+      queue.push(url);
     }
   }
 
