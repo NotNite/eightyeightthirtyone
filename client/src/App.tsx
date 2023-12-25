@@ -345,7 +345,13 @@ export default function App() {
             <ul>
               {(origGraph?.images[selected] ?? []).map((x, i) => (
                 <li key={i}>
-                  <img src={x} alt={x} />
+                  <img
+                    src={`${
+                      import.meta.env.VITE_BADGES_HOST ??
+                      "https://highway.eightyeightthirty.one"
+                    }/badge/${x}`}
+                    alt={x}
+                  />
                 </li>
               ))}
             </ul>

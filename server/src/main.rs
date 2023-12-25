@@ -326,8 +326,6 @@ async fn graph(
         images: HashMap::new(),
     };
 
-    let mut images: HashMap<String, Vec<(String, String)>> = HashMap::new();
-
     let redis = state.redis.lock().await;
     let pages = redis.smembers::<Vec<String>, _>("pages").await?;
     for page_b64 in pages {
@@ -386,13 +384,6 @@ async fn graph(
                     .or_default()
                     .push(link_domain.clone());
 
-                let image_url = redis
-                    .hget::<String, _, String>(
-                        format!("link:{}:{}", page_b64, link_from),
-                        "imageUrl".to_string(),
-                    )
-                    .await
-                    .ok();
                 let image_hash = redis
                     .hget::<String, _, String>(
                         format!("link:{}:{}", page_b64, link_from),
@@ -401,36 +392,13 @@ async fn graph(
                     .await
                     .ok();
 
-                if let (Some(image_url), Some(image_hash)) = (image_url, image_hash) {
-                    images
-                        .entry(link_domain)
-                        .or_default()
-                        .push((image_url, image_hash));
+                if let Some(image_hash) = image_hash {
+                    let hashes = graph.images.entry(link_domain.clone()).or_default();
+                    if !hashes.contains(&image_hash) {
+                        hashes.push(image_hash.clone());
+                    }
                 }
             }
-        }
-    }
-
-    // In the future, this should be reworked to send the image hash, and then save those images to disk
-    for (domain, data) in images {
-        let mut hashes = data.iter().map(|(_, hash)| hash).collect::<Vec<_>>();
-        hashes.sort();
-        hashes.dedup();
-
-        // Pick the first URL for each hash
-        for hash in hashes {
-            let url = data
-                .iter()
-                .find(|(_, hash2)| hash == hash2)
-                .unwrap()
-                .0
-                .clone();
-            let url = String::from_utf8(state.base64.decode(&url)?)?;
-            graph
-                .images
-                .entry(domain.clone())
-                .or_default()
-                .push(url.clone());
         }
     }
 
@@ -438,8 +406,30 @@ async fn graph(
     Ok(Json(graph).into_response())
 }
 
-async fn get_badge(Path(sha256): Path<String>) -> axum::response::Result<()> {
-    Ok(())
+fn is_sha256(s: &str) -> bool {
+    s.len() == 64 && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+async fn get_badge(Path(sha256): Path<String>) -> AppResult<Response<Body>> {
+    if !is_sha256(&sha256) {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    }
+
+    let exists = tokio::fs::metadata(format!("./images/{}", sha256))
+        .await
+        .is_ok();
+    if !exists {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    }
+
+    let data = tokio::fs::read(format!("./images/{}", sha256)).await?;
+    let mime = infer::get(&data)
+        .map(|x| x.mime_type())
+        .unwrap_or("application/octet-stream");
+    let response = Response::builder()
+        .header("Content-Type", mime.to_string())
+        .body(data.into())?;
+    Ok(response)
 }
 
 async fn post_badge(
@@ -447,8 +437,25 @@ async fn post_badge(
     State(state): State<AppState>,
     Path(sha256): Path<String>,
     image: Bytes,
-) -> axum::response::Result<()> {
-    Ok(())
+) -> AppResult<Response<Body>> {
+    if !is_valid(state.redis.clone(), token.clone()).await? {
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
+    }
+
+    if !is_sha256(&sha256) {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    }
+
+    tokio::fs::create_dir_all("./images").await?;
+    let exists = tokio::fs::metadata(format!("./images/{}", sha256))
+        .await
+        .is_ok();
+    if exists {
+        return Ok(StatusCode::CONFLICT.into_response());
+    }
+
+    tokio::fs::write(format!("./images/{}", sha256), image).await?;
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 async fn statistics(State(state): State<AppState>) -> AppResult<Json<Statistics>> {

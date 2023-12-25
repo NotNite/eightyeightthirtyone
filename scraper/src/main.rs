@@ -59,7 +59,11 @@ async fn recursive_children(el: &WebElement) -> anyhow::Result<Vec<WebElement>> 
     Ok(children)
 }
 
-async fn image_is_88x31(url: &str, reqwest_client: &reqwest::Client) -> anyhow::Result<String> {
+async fn image_is_88x31(
+    url: &str,
+    reqwest_client: &reqwest::Client,
+    config: &Config,
+) -> anyhow::Result<String> {
     let response = reqwest_client.get(url).send().await?;
     let bytes = response.bytes().await?;
     let image = image::load_from_memory(&bytes)?;
@@ -77,6 +81,15 @@ async fn image_is_88x31(url: &str, reqwest_client: &reqwest::Client) -> anyhow::
     }
 
     let hash = format!("{:x}", sha2::Sha256::digest(&bytes));
+
+    reqwest_client
+        .post(&format!("{}/badge/{}", config.host, hash))
+        .header("Authorization", &format!("Bearer {}", config.key))
+        .body(bytes)
+        .send()
+        .await
+        .ok();
+
     Ok(hash)
 }
 
@@ -92,6 +105,7 @@ async fn process(
     driver: &Option<WebDriver>,
     url: &str,
     reqwest_client: &reqwest::Client,
+    config: &Config,
 ) -> Result<WorkSchema, ScrapeError> {
     if !check_robots_txt(url).await.unwrap_or_default() {
         return Err(ScrapeError::Robots);
@@ -125,7 +139,8 @@ async fn process(
                                     .map_err(|e| ScrapeError::Unknown(e.into()))?
                                     .to_string();
 
-                                if let Ok(hash) = image_is_88x31(&src, reqwest_client).await {
+                                if let Ok(hash) = image_is_88x31(&src, reqwest_client, config).await
+                                {
                                     result.push(LinkSchema {
                                         to: real_href.clone(),
                                         image: src,
@@ -175,7 +190,7 @@ async fn process(
         }
 
         for (real_href, src) in queued_images {
-            if let Ok(hash) = image_is_88x31(&src, reqwest_client).await {
+            if let Ok(hash) = image_is_88x31(&src, reqwest_client, config).await {
                 result.push(LinkSchema {
                     to: real_href.clone(),
                     image: src,
@@ -213,7 +228,7 @@ async fn try_work(
 
     if !url.is_empty() {
         println!("Processing: {}", url);
-        let result = process(driver, &url, client).await;
+        let result = process(driver, &url, client, config).await;
         if let Ok(work) = result {
             let work = serde_json::to_string(&work).map_err(|e| ScrapeError::Unknown(e.into()))?;
             client
