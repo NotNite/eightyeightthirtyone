@@ -57,6 +57,13 @@ struct Graph {
     images: HashMap<String, Vec<String>>,
 }
 
+#[derive(Serialize, Debug, Clone)]
+struct Statistics {
+    pub queue: usize,
+    pub visited_pages: usize,
+    pub known_pages: usize,
+}
+
 struct AppError(anyhow::Error);
 type AppResult<T> = axum::response::Result<T, AppError>;
 impl IntoResponse for AppError {
@@ -181,7 +188,7 @@ async fn post_work(
     // Update the page metadata
     redis
         .hset(
-            format!("page:data:{}", result_url),
+            format!("pages:data:{}", result_url),
             HashMap::from_iter(vec![(
                 "lastScraped".to_string(),
                 chrono::Utc::now().timestamp().to_string(),
@@ -190,7 +197,7 @@ async fn post_work(
         .await?;
 
     if work.success {
-        redis.sadd("pages:success", &[result_url.clone()]).await?;
+        redis.sadd("pages:visited", &[result_url.clone()]).await?;
     } else {
         redis.sadd("pages:failed", &[result_url.clone()]).await?;
     }
@@ -226,11 +233,11 @@ async fn post_work(
 
             // Update link metadata
             redis
-                .sadd(format!("page:linksto:{}", result_url), &[to.clone()])
+                .sadd(format!("pages:linksto:{}", result_url), &[to.clone()])
                 .await?;
 
             redis
-                .sadd(format!("page:linkedfrom:{}", to), &[result_url.clone()])
+                .sadd(format!("pages:linkedfrom:{}", to), &[result_url.clone()])
                 .await?;
 
             let image_url = state.base64.encode(link.image.as_bytes());
@@ -251,7 +258,7 @@ async fn post_work(
                 redis.sadd("pages", &[to.clone()]).await?;
                 redis
                     .hset(
-                        format!("page:data:{}", to),
+                        format!("pages:data:{}", to),
                         HashMap::from_iter(vec![("lastScraped".to_string(), "0".to_string())]),
                     )
                     .await?;
@@ -296,7 +303,7 @@ async fn submit(
     transaction.rpush("pages:queue", &[url.clone()]).await?;
     transaction
         .hset(
-            format!("page:data:{}", url),
+            format!("pages:data:{}", url),
             HashMap::from_iter(vec![("lastScraped".to_string(), "0".to_string())]),
         )
         .await?;
@@ -332,7 +339,7 @@ async fn graph(
         let page_domain = page_domain.unwrap();
 
         let links_to = redis
-            .smembers::<Vec<String>, _>(format!("page:linksto:{}", page_b64))
+            .smembers::<Vec<String>, _>(format!("pages:linksto:{}", page_b64))
             .await
             .unwrap_or_default();
         for link_to in links_to {
@@ -357,7 +364,7 @@ async fn graph(
         }
 
         let linked_from = redis
-            .smembers::<Vec<String>, _>(format!("page:linkedfrom:{}", page_b64))
+            .smembers::<Vec<String>, _>(format!("pages:linkedfrom:{}", page_b64))
             .await
             .unwrap_or_default();
         for link_from in linked_from {
@@ -444,6 +451,20 @@ async fn post_badge(
     Ok(())
 }
 
+async fn statistics(State(state): State<AppState>) -> AppResult<Json<Statistics>> {
+    let redis = state.redis.lock().await;
+
+    let queue: usize = redis.llen("pages:queue").await.unwrap_or(0);
+    let visited_pages: usize = redis.scard("pages:visited").await.unwrap_or(0);
+    let known_pages: usize = redis.scard("pages").await.unwrap_or(0);
+
+    Ok(Json(Statistics {
+        queue,
+        visited_pages,
+        known_pages,
+    }))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
@@ -468,6 +489,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/graph", get(graph))
         .route("/badge/:sha256", post(post_badge))
         .route("/badge/:sha256", get(get_badge))
+        .route("/statistics", get(statistics))
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", config.port))

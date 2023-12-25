@@ -1,9 +1,9 @@
 version: "3.8"
 
 services:
-  redis:
-    image: redis
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
     ports:
       - 6379:6379
     volumes:
-      - ./redis:/data
+      - ./data:/data
