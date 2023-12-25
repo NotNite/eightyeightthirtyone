@@ -13,7 +13,8 @@ pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWe
 pub struct Config {
     host: String,
     key: String,
-    drivers: Vec<String>,
+    drivers: Option<Vec<String>>,
+    tasks: Option<usize>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -88,7 +89,7 @@ async fn check_robots_txt(url: &str) -> anyhow::Result<bool> {
 }
 
 async fn process(
-    driver: &WebDriver,
+    driver: &Option<WebDriver>,
     url: &str,
     reqwest_client: &reqwest::Client,
 ) -> Result<WorkSchema, ScrapeError> {
@@ -97,41 +98,89 @@ async fn process(
     }
 
     let parsed_url = url::Url::parse(url).map_err(|e| ScrapeError::Unknown(e.into()))?;
-
-    driver.goto(url).await?;
-    let current_url = driver.current_url().await?;
-    let body = driver.active_element().await?;
-
-    let links = body.find_all(By::Tag("a")).await?;
     let mut result = Vec::new();
-    for link in links {
-        if let Some(href) = link.attr("href").await? {
-            if let Some(real_href) = url::Url::parse(current_url.as_str())
-                .and_then(|u| u.join(&href))
-                .ok()
-                .map(|u| u.to_string())
-            {
-                let children = recursive_children(&link)
-                    .await
-                    .map_err(ScrapeError::Unknown)?;
-                for child in children {
-                    if child.tag_name().await? == "img" {
-                        if let Some(src) = child.attr("src").await? {
-                            let src = parsed_url
-                                .join(&src)
-                                .map_err(|e| ScrapeError::Unknown(e.into()))?
-                                .to_string();
+    let mut current_url = parsed_url.clone();
 
-                            if let Ok(hash) = image_is_88x31(&src, reqwest_client).await {
-                                result.push(LinkSchema {
-                                    to: real_href.clone(),
-                                    image: src,
-                                    image_hash: hash,
-                                })
+    if let Some(driver) = driver {
+        driver.goto(url).await?;
+        current_url = driver.current_url().await?;
+        let body = driver.active_element().await?;
+
+        let links = body.find_all(By::Tag("a")).await?;
+        for link in links {
+            if let Some(href) = link.attr("href").await? {
+                if let Some(real_href) = url::Url::parse(current_url.as_str())
+                    .and_then(|u| u.join(&href))
+                    .ok()
+                    .map(|u| u.to_string())
+                {
+                    let children = recursive_children(&link)
+                        .await
+                        .map_err(ScrapeError::Unknown)?;
+                    for child in children {
+                        if child.tag_name().await? == "img" {
+                            if let Some(src) = child.attr("src").await? {
+                                let src = parsed_url
+                                    .join(&src)
+                                    .map_err(|e| ScrapeError::Unknown(e.into()))?
+                                    .to_string();
+
+                                if let Ok(hash) = image_is_88x31(&src, reqwest_client).await {
+                                    result.push(LinkSchema {
+                                        to: real_href.clone(),
+                                        image: src,
+                                        image_hash: hash,
+                                    })
+                                }
                             }
                         }
                     }
                 }
+            }
+        }
+    } else {
+        let mut queued_images: Vec<(String, String)> = Vec::new();
+        {
+            let response = reqwest_client.get(url).send().await?;
+            let text = response.text().await?;
+
+            let document = scraper::Html::parse_document(&text);
+            let body = document.root_element();
+
+            let selector = scraper::Selector::parse("a").unwrap();
+            let links = body.select(&selector);
+            for link in links {
+                if let Some(href) = link.value().attr("href") {
+                    if let Some(real_href) = url::Url::parse(current_url.as_str())
+                        .and_then(|u| u.join(href))
+                        .ok()
+                        .map(|u| u.to_string())
+                    {
+                        let children = link.children();
+                        for child in children {
+                            if let Some(elem) = child.value().as_element() {
+                                if let Some(src) = elem.attr("src") {
+                                    let src = parsed_url
+                                        .join(src)
+                                        .map_err(|e| ScrapeError::Unknown(e.into()))?
+                                        .to_string();
+
+                                    queued_images.push((real_href.clone(), src));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (real_href, src) in queued_images {
+            if let Ok(hash) = image_is_88x31(&src, reqwest_client).await {
+                result.push(LinkSchema {
+                    to: real_href.clone(),
+                    image: src,
+                    image_hash: hash,
+                })
             }
         }
     }
@@ -146,7 +195,7 @@ async fn process(
 
 async fn try_work(
     client: &reqwest::Client,
-    driver: &WebDriver,
+    driver: &Option<WebDriver>,
     config: &Config,
 ) -> Result<(), ScrapeError> {
     let req = client
@@ -215,10 +264,23 @@ async fn main() -> anyhow::Result<()> {
 
     let (shutdown_tx, shutdown_rx) = flume::unbounded();
 
-    for host in &config.drivers {
-        let mut caps = DesiredCapabilities::chrome();
-        caps.add_chrome_arg(&format!("--user-agent={}", USER_AGENT))?;
-        let driver = WebDriver::new(host, caps).await?;
+    let drivers = config.drivers.clone();
+    let count = if drivers.is_some() {
+        drivers.as_ref().unwrap().len()
+    } else {
+        config.tasks.unwrap_or(1)
+    };
+
+    for i in 0..count {
+        let driver = if drivers.is_some() {
+            let host = drivers.as_ref().unwrap()[i].clone();
+            let mut caps = DesiredCapabilities::chrome();
+            caps.add_chrome_arg(&format!("--user-agent={}", USER_AGENT))?;
+            let driver = WebDriver::new(&host, caps).await?;
+            Some(driver)
+        } else {
+            None
+        };
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(5))
@@ -231,7 +293,10 @@ async fn main() -> anyhow::Result<()> {
         tasks.push(tokio::spawn(async move {
             loop {
                 if shutdown_rx.try_recv().is_ok() {
-                    driver.quit().await.ok();
+                    if let Some(driver) = driver {
+                        driver.quit().await.ok();
+                    }
+
                     break;
                 }
 
