@@ -28,6 +28,7 @@ dist-ssr
 
 graph.json
 graph.bak.json
+config.json
 target/
 images/
 redis/

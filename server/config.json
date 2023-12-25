@@ -1,6 +1,0 @@
-{
-  "port": 3000,
-  "admin_key": "deeznuts47",
-  "redis_host": "localhost",
-  "redis_port": 6379
-}
