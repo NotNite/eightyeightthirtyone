@@ -20,6 +20,13 @@ const router = new Router();
 const db = new PrismaClient();
 let queue = ["https://notnite.com/"];
 
+const blacklistedHosts = [
+  "youtube.com",
+  "web.archive.org",
+  "jcink.net" // Unfortunately somewhat interesting community that creates black holes
+];
+const maxPagesPerDomain = 50;
+
 await fillQueue();
 await pruneQueue();
 setInterval(async () => {
@@ -27,12 +34,6 @@ setInterval(async () => {
 }, 1000 * 60);
 
 function validateHost(host: string) {
-  const blacklistedHosts = [
-    "youtube.com",
-    "web.archive.org",
-    "jcink.net" // Unfortunately somewhat interesting community that creates black holes
-  ];
-
   return !blacklistedHosts.some((blacklistedHost) =>
     host.endsWith(blacklistedHost)
   );
@@ -162,6 +163,18 @@ async function shouldBeQueued(
           }
         })
       : pages.find((page) => page.url === url);
+  const pageHostname = hostname(url);
+  if (pageHostname == null) return false;
+
+  const pagesWithDomain =
+    pages == null
+      ? await db.page.findMany({
+          where: {
+            domain: pageHostname
+          }
+        })
+      : pages.filter((page) => page.domain === pageHostname);
+  if (pagesWithDomain.length > maxPagesPerDomain) return false;
 
   if (
     page != null &&
@@ -189,6 +202,19 @@ async function shouldBeQueued(
             }
           })
         : pages.find((page) => page.url === redirect.to);
+
+    const pageHostname = hostname(redirect.to);
+    if (pageHostname == null) return false;
+
+    const pagesWithDomain =
+      pages == null
+        ? await db.page.findMany({
+            where: {
+              domain: pageHostname
+            }
+          })
+        : pages.filter((page) => page.domain === pageHostname);
+    if (pagesWithDomain.length > maxPagesPerDomain) return false;
 
     if (
       page != null &&
