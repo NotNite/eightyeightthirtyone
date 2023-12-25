@@ -5,6 +5,7 @@ import { bodyParser } from "@koa/bodyparser";
 import { PrismaClient } from "@prisma/client";
 import { v4 } from "uuid";
 import z from "zod";
+import fs from "fs";
 
 declare global {
   namespace NodeJS {
@@ -21,6 +22,9 @@ let queue = ["https://notnite.com/"];
 
 await fillQueue();
 await pruneQueue();
+setInterval(async () => {
+  await pruneQueue();
+}, 1000 * 60);
 
 function validateUrl(url: string) {
   const blacklistedHosts = ["youtube.com"];
@@ -359,40 +363,43 @@ router.get("/graph", async (ctx) => {
     return;
   }
 
-  const pages = await db.page.findMany({});
-  const links = await db.link.findMany({});
-  const redirects = await db.redirect.findMany({});
+  ctx.status = 204;
+  setTimeout(async () => {
+    const pages = await db.page.findMany({});
+    const links = await db.link.findMany({});
+    const redirects = await db.redirect.findMany({});
 
-  const linksTo: Record<string, string[]> = {};
-  const linkedFrom: Record<string, string[]> = {};
-  const images: Record<string, { url: string; hash: string }[]> = {};
+    const linksTo: Record<string, string[]> = {};
+    const linkedFrom: Record<string, string[]> = {};
+    const images: Record<string, { url: string; hash: string }[]> = {};
 
-  for (const page of pages) {
-    const pageLinks = links.filter((link) => link.srcUrl === page.url);
-    const redirect = redirects.find((redirect) => redirect.from === page.url);
-    const url = redirect == null ? page.url : redirect.to;
-    const host = hostname(url);
-    if (host == null || host.trim() == "") continue;
-    linksTo[host] = linksTo[host] ?? [];
+    for (const page of pages) {
+      const pageLinks = links.filter((link) => link.srcUrl === page.url);
+      const redirect = redirects.find((redirect) => redirect.from === page.url);
+      const url = redirect == null ? page.url : redirect.to;
+      const host = hostname(url);
+      if (host == null || host.trim() == "") continue;
+      linksTo[host] = linksTo[host] ?? [];
 
-    for (const link of pageLinks) {
-      const redirect = redirects.find(
-        (redirect) => redirect.from === link.dstUrl
-      );
-      const dstUrl = redirect == null ? link.dstUrl : redirect.to;
-      const dstHost = hostname(dstUrl);
-      if (dstHost == null || dstHost.trim() === "") continue;
+      for (const link of pageLinks) {
+        const redirect = redirects.find(
+          (redirect) => redirect.from === link.dstUrl
+        );
+        const dstUrl = redirect == null ? link.dstUrl : redirect.to;
+        const dstHost = hostname(dstUrl);
+        if (dstHost == null || dstHost.trim() === "") continue;
 
-      linksTo[host].push(dstHost);
-      if (linkedFrom[dstHost] == null) linkedFrom[dstHost] = [];
-      linkedFrom[dstHost].push(host);
+        linksTo[host].push(dstHost);
+        if (linkedFrom[dstHost] == null) linkedFrom[dstHost] = [];
+        linkedFrom[dstHost].push(host);
 
-      images[dstHost] = images[dstHost] ?? [];
-      if (!images[dstHost].some((i) => i.hash === link.imageHash)) {
-        images[dstHost].push({
-          url: link.imageUrl,
-          hash: link.imageHash
-        });
+        images[dstHost] = images[dstHost] ?? [];
+        if (!images[dstHost].some((i) => i.hash === link.imageHash)) {
+          images[dstHost].push({
+            url: link.imageUrl,
+            hash: link.imageHash
+          });
+        }
       }
     }
 
@@ -417,13 +424,14 @@ router.get("/graph", async (ctx) => {
       ])
     );
 
-    ctx.body = JSON.stringify({
+    const data = JSON.stringify({
       linksTo: properLinksTo,
       linkedFrom: properLinkedFrom,
       images: properImages
     });
-    ctx.response.type = "application/json";
-  }
+    fs.writeFileSync("graph.json", data);
+    console.log("Wrote graph.json");
+  }, 1);
 });
 
 app.use(bodyParser()).use(router.routes()).use(router.allowedMethods());
