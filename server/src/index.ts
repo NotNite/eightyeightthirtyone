@@ -26,13 +26,23 @@ setInterval(async () => {
   await pruneQueue();
 }, 1000 * 60);
 
+function validateHost(host: string) {
+  const blacklistedHosts = [
+    "youtube.com",
+    "web.archive.org",
+    "jcink.net" // Unfortunately somewhat interesting community that creates black holes
+  ];
+
+  return !blacklistedHosts.some((blacklistedHost) =>
+    host.endsWith(blacklistedHost)
+  );
+}
+
 function validateUrl(url: string) {
-  const blacklistedHosts = ["youtube.com"];
   try {
     const uri = new URL(url);
     if (!["http:", "https:"].includes(uri.protocol)) return false;
-    if (blacklistedHosts.some((host) => uri.hostname.endsWith(host)))
-      return false;
+    if (!validateHost(uri.hostname)) return false;
   } catch (e) {
     return false;
   }
@@ -452,21 +462,23 @@ router.get("/graph", async (ctx) => {
     const properLinksTo = Object.fromEntries(
       Object.entries(linksTo).map(([host, links]) => [
         host,
-        Array.from(new Set(links))
+        Array.from(new Set(links)).filter((x) => validateHost(x))
       ])
     );
 
     const properLinkedFrom = Object.fromEntries(
       Object.entries(linkedFrom).map(([host, links]) => [
         host,
-        Array.from(new Set(links))
+        Array.from(new Set(links)).filter((x) => validateHost(x))
       ])
     );
 
     const properImages = Object.fromEntries(
       Object.entries(images).map(([host, images]) => [
         host,
-        Array.from(new Set(images.map((x) => x.url)))
+        Array.from(new Set(images.map((x) => x.url))).filter((x) =>
+          validateUrl(x)
+        )
       ])
     );
 
