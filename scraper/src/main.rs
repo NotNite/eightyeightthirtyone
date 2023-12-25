@@ -1,3 +1,4 @@
+use reqwest::redirect;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::time::Duration;
@@ -157,6 +158,7 @@ async fn process(
         let mut queued_images: Vec<(String, String)> = Vec::new();
         {
             let response = reqwest_client.get(url).send().await?;
+            current_url = response.url().clone();
             let text = response.text().await?;
 
             let document = scraper::Html::parse_document(&text);
@@ -301,6 +303,7 @@ async fn main() -> anyhow::Result<()> {
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(10))
             .user_agent(USER_AGENT)
+            .redirect(redirect::Policy::limited(10))
             .build()?;
 
         let config = config.clone();
