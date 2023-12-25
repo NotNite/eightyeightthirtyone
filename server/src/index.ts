@@ -2,7 +2,7 @@ import "dotenv/config";
 import Koa from "koa";
 import Router from "@koa/router";
 import { bodyParser } from "@koa/bodyparser";
-import { PrismaClient } from "@prisma/client";
+import { Link, Page, PrismaClient, Redirect } from "@prisma/client";
 import { v4 } from "uuid";
 import z from "zod";
 import fs from "fs";
@@ -50,33 +50,47 @@ function hostname(url: string) {
   }
 }
 
-async function shouldBePurged(url: string) {
+async function shouldBePurged(
+  url: string,
+  pages?: Page[],
+  links?: Link[],
+  redirects?: Redirect[]
+) {
   if (!validateUrl(url)) return true;
 
-  const page = await db.page.findUnique({
-    where: {
-      url
-    }
-  });
+  const page =
+    pages == null
+      ? await db.page.findUnique({
+          where: {
+            url
+          }
+        })
+      : pages.find((page) => page.url === url);
 
   if (page != null) {
-    const links = await db.link.findMany({
-      where: {
-        srcUrl: page.url
-      }
-    });
+    const pageLinks =
+      links == null
+        ? await db.link.findMany({
+            where: {
+              srcUrl: page.url
+            }
+          })
+        : links.filter((link) => link.srcUrl === page.url);
 
-    if (links.length === 1) {
-      const dst = links[0].dstUrl;
+    if (pageLinks.length === 1) {
+      const dst = pageLinks[0].dstUrl;
       if (dst === page.url) {
         return true;
       }
 
-      const redirect = await db.redirect.findUnique({
-        where: {
-          from: dst
-        }
-      });
+      const redirect =
+        redirects == null
+          ? await db.redirect.findUnique({
+              where: {
+                from: dst
+              }
+            })
+          : redirects.find((redirect) => redirect.from === dst);
 
       if (redirect?.to === page.url) {
         return true;
@@ -84,27 +98,36 @@ async function shouldBePurged(url: string) {
     }
   }
 
-  const redirect = await db.redirect.findUnique({
-    where: {
-      from: url
-    }
-  });
+  const redirect =
+    redirects == null
+      ? await db.redirect.findUnique({
+          where: {
+            from: url
+          }
+        })
+      : redirects.find((redirect) => redirect.from === url);
 
   if (redirect != null) {
-    const page = await db.page.findUnique({
-      where: {
-        url: redirect.to
-      }
-    });
+    const page =
+      pages == null
+        ? await db.page.findUnique({
+            where: {
+              url: redirect.to
+            }
+          })
+        : pages.find((page) => page.url === redirect.to);
 
     if (page != null) {
-      const links = await db.link.findMany({
-        where: {
-          srcUrl: page.url
-        }
-      });
+      const pageLinks =
+        links == null
+          ? await db.link.findMany({
+              where: {
+                srcUrl: page.url
+              }
+            })
+          : links.filter((link) => link.srcUrl === page.url);
 
-      if (links.length === 1 && links[0].dstUrl === page.url) {
+      if (pageLinks.length === 1 && pageLinks[0].dstUrl === page.url) {
         return true;
       }
     }
@@ -113,14 +136,22 @@ async function shouldBePurged(url: string) {
   return false;
 }
 
-async function shouldBeQueued(url: string) {
-  if (await shouldBePurged(url)) return false;
+async function shouldBeQueued(
+  url: string,
+  pages?: Page[],
+  links?: Link[],
+  redirects?: Redirect[]
+) {
+  if (await shouldBePurged(url, pages, links, redirects)) return false;
 
-  const page = await db.page.findUnique({
-    where: {
-      url
-    }
-  });
+  const page =
+    pages == null
+      ? await db.page.findUnique({
+          where: {
+            url
+          }
+        })
+      : pages.find((page) => page.url === url);
 
   if (
     page != null &&
@@ -130,18 +161,25 @@ async function shouldBeQueued(url: string) {
     return false;
   }
 
-  const redirect = await db.redirect.findUnique({
-    where: {
-      from: url
-    }
-  });
+  const redirect =
+    redirects == null
+      ? await db.redirect.findUnique({
+          where: {
+            from: url
+          }
+        })
+      : redirects.find((redirect) => redirect.from === url);
 
   if (redirect != null) {
-    const page = await db.page.findUnique({
-      where: {
-        url: redirect.to
-      }
-    });
+    const page =
+      pages == null
+        ? await db.page.findUnique({
+            where: {
+              url: redirect.to
+            }
+          })
+        : pages.find((page) => page.url === redirect.to);
+
     if (
       page != null &&
       page.lastScraped != null &&
@@ -156,10 +194,15 @@ async function shouldBeQueued(url: string) {
 
 async function fillQueue() {
   // slow as balls but i cbf rn
+  const pages = await db.page.findMany({});
   const links = await db.link.findMany({});
+  const redirects = await db.redirect.findMany({});
 
   for (const link of links) {
-    if ((await shouldBeQueued(link.dstUrl)) && !queue.includes(link.dstUrl)) {
+    if (
+      (await shouldBeQueued(link.dstUrl, pages, links, redirects)) &&
+      !queue.includes(link.dstUrl)
+    ) {
       queue.push(link.dstUrl);
     }
   }
@@ -169,6 +212,10 @@ async function fillQueue() {
 }
 
 async function pruneQueue() {
+  const pages = await db.page.findMany({});
+  const links = await db.link.findMany({});
+  const redirects = await db.redirect.findMany({});
+
   for (const url of [...queue]) {
     if (!validateUrl(url)) {
       console.log("Invalid URL:", url);
@@ -176,18 +223,16 @@ async function pruneQueue() {
       continue;
     }
 
-    if (!(await shouldBeQueued(url))) {
+    if (!(await shouldBeQueued(url, pages, links, redirects))) {
       queue.splice(queue.indexOf(url), 1);
       continue;
     }
 
-    const redirect = await db.redirect.findUnique({
-      where: {
-        from: url
-      }
-    });
-
-    if (redirect != null && !(await shouldBeQueued(redirect.to))) {
+    const redirect = redirects.find((redirect) => redirect.from === url);
+    if (
+      redirect != null &&
+      !(await shouldBeQueued(redirect.to, pages, links, redirects))
+    ) {
       queue.splice(queue.indexOf(url), 1);
       continue;
     }
