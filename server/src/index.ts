@@ -508,12 +508,45 @@ router.get("/graph", async (ctx) => {
       ])
     );
 
-    const data = JSON.stringify({
+    const data = {
       linksTo: properLinksTo,
       linkedFrom: properLinkedFrom,
       images: properImages
-    });
-    fs.writeFileSync("graph.json", data);
+    };
+
+    const allLinksTo = Array.from(new Set(Object.values(data.linksTo).flat()));
+    const allLinkedFrom = Array.from(
+      new Set(Object.values(data.linkedFrom).flat())
+    );
+    const allDomains = Array.from(
+      new Set([
+        ...allLinksTo,
+        ...allLinkedFrom,
+        ...Object.keys(linksTo),
+        ...Object.keys(linkedFrom)
+      ])
+    );
+
+    for (const domain of allDomains) {
+      if (!allLinksTo.includes(domain) && !allLinkedFrom.includes(domain)) {
+        delete data.linksTo[domain];
+        delete data.linkedFrom[domain];
+        delete data.images[domain];
+      }
+
+      if (
+        data.linksTo[domain]?.length == 1 &&
+        data.linkedFrom[domain]?.length === 1 &&
+        data.linksTo[domain][0] === domain &&
+        data.linkedFrom[domain][0] === domain
+      ) {
+        delete data.linksTo[domain];
+        delete data.linkedFrom[domain];
+        delete data.images[domain];
+      }
+    }
+
+    fs.writeFileSync("graph.json", JSON.stringify(data));
     console.log("Wrote graph.json");
   }, 1);
 });
