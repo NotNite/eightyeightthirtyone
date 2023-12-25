@@ -130,7 +130,7 @@ async fn get_work(
     AuthBearer(token): AuthBearer,
     State(state): State<AppState>,
 ) -> AppResult<Response<Body>> {
-    if !auth_valid(state.redis.clone(), token.clone()).await? {
+    if !auth_valid(state.redis.clone(), token.clone()).await? && token != state.config.admin_key {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
@@ -154,7 +154,7 @@ async fn post_work(
     State(state): State<AppState>,
     Json(work): Json<WorkSchema>,
 ) -> AppResult<Response<Body>> {
-    if !auth_valid(state.redis.clone(), token.clone()).await? {
+    if !auth_valid(state.redis.clone(), token.clone()).await? && token != state.config.admin_key {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
@@ -559,7 +559,7 @@ async fn post_badge(
     Path(sha256): Path<String>,
     image: Bytes,
 ) -> AppResult<Response<Body>> {
-    if !auth_valid(state.redis.clone(), token.clone()).await? {
+    if !auth_valid(state.redis.clone(), token.clone()).await? && token != state.config.admin_key {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
