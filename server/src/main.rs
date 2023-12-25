@@ -244,7 +244,7 @@ async fn post_work(
             .smembers::<Vec<String>, _>(format!("pages:linkedfrom:{}", orig_url))
             .await
             .unwrap_or_default();
-        for link_from in linked_from {
+        for link_from in &linked_from {
             let orig_link_data = redis
                 .hgetall::<HashMap<String, String>, _>(format!("link:{}:{}", link_from, orig_url))
                 .await
@@ -262,6 +262,9 @@ async fn post_work(
             }
         }
         redis.del(format!("pages:linkedfrom:{}", orig_url)).await?;
+        redis
+            .sadd(format!("pages:linkedfrom:{}", result_url), linked_from)
+            .await?;
 
         // Update page sets
         redis.sadd("pages", &[result_url.clone()]).await?;
@@ -459,6 +462,21 @@ async fn graph(
                 graph.links_to.entry(link_domain.clone()).or_default();
                 graph.linked_from.entry(link_domain.clone()).or_default();
                 graph.images.entry(link_domain.clone()).or_default();
+
+                let image_hash = redis
+                    .hget::<String, _, String>(
+                        format!("link:{}:{}", page_b64, link_to),
+                        "imageHash".to_string(),
+                    )
+                    .await
+                    .ok();
+
+                if let Some(image_hash) = image_hash {
+                    let hashes = graph.images.entry(link_domain.clone()).or_default();
+                    if !hashes.contains(&image_hash) {
+                        hashes.push(image_hash.clone());
+                    }
+                }
             }
         }
 
@@ -488,21 +506,6 @@ async fn graph(
                 graph.links_to.entry(link_domain.clone()).or_default();
                 graph.linked_from.entry(link_domain.clone()).or_default();
                 graph.images.entry(link_domain.clone()).or_default();
-
-                let image_hash = redis
-                    .hget::<String, _, String>(
-                        format!("link:{}:{}", page_b64, link_from),
-                        "imageHash".to_string(),
-                    )
-                    .await
-                    .ok();
-
-                if let Some(image_hash) = image_hash {
-                    let hashes = graph.images.entry(link_domain.clone()).or_default();
-                    if !hashes.contains(&image_hash) {
-                        hashes.push(image_hash.clone());
-                    }
-                }
             }
         }
     }
