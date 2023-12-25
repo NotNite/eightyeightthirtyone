@@ -8,12 +8,16 @@ body {
   height: 100vh;
   font-family: "Inter", sans-serif;
   background-color: black;
+  color: white;
 }
 
 .controls {
   position: absolute;
   bottom: 0;
   right: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 0.5rem;
+  max-width: 20rem;
 
   display: flex;
   flex-direction: column;
@@ -25,6 +29,14 @@ body {
   display: flex;
   flex-direction: row;
   justify-content: center;
+  align-items: center;
+  gap: 0.5ch;
+}
+
+.buttonsAndStuff {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
   align-items: center;
   gap: 0.5ch;
 }

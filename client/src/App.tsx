@@ -48,6 +48,7 @@ export default function App() {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [separation, setSeparation] = React.useState<string[] | null>(null);
   const [three, setThree] = React.useState(false);
+  const [extendedInfo, setExtendedInfo] = React.useState(false);
 
   React.useEffect(() => {
     async function createGraphData() {
@@ -235,9 +236,36 @@ export default function App() {
           ))}
         </datalist>
 
-        <button onClick={() => setThree(!three)}>
-          {three ? "Set to 2D" : "Set to 3D"}
-        </button>
+        {extendedInfo && (
+          <div className="about">
+            <p>
+              This site crawls the links between{" "}
+              <a href="https://tekeye.uk/computer_history/powered-by">88x31s</a>{" "}
+              on the Internet, which are small badges on websites that link to
+              other websites.
+            </p>
+
+            <p>
+              Click on nodes to see more information. Press Space to focus the
+              node you've selected. Use the slider to filter degrees of
+              separation.
+            </p>
+
+            <p>
+              When a node is selected, the sidebar will contain information
+              about links, the node's buttons, and a pathfinder.
+            </p>
+          </div>
+        )}
+
+        <div className="buttonsAndStuff">
+          <a href="#" onClick={() => setExtendedInfo(!extendedInfo)}>
+            What is this?
+          </a>
+          <button onClick={() => setThree(!three)}>
+            {three ? "Set to 2D" : "Set to 3D"}
+          </button>
+        </div>
 
         <input
           type="range"
