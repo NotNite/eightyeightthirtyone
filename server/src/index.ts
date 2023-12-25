@@ -218,7 +218,6 @@ router.get("/work", async (ctx) => {
     return;
   }
 
-  await pruneQueue();
   ctx.body = queue.pop();
   console.log("Queue length:", queue.length);
   if (queue.length <= 0) {
@@ -352,7 +351,6 @@ router.post("/work", async (ctx) => {
     }
   }
 
-  await pruneQueue();
   ctx.status = 204;
   console.log("Processed:", data.result_url);
 });
