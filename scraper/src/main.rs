@@ -200,7 +200,7 @@ async fn try_work(
 ) -> Result<(), ScrapeError> {
     let req = client
         .get(&format!("{}/work", config.host))
-        .header("Authorization", config.key.clone())
+        .header("Authorization", format!("Bearer {}", config.key.clone()))
         .send()
         .await
         .map_err(|e| ScrapeError::Api(Some(e)))?;
@@ -219,7 +219,7 @@ async fn try_work(
             client
                 .post(&format!("{}/work", config.host))
                 .header("Content-Type", "application/json")
-                .header("Authorization", config.key.clone())
+                .header("Authorization", format!("Bearer {}", config.key.clone()))
                 .body(work)
                 .send()
                 .await
