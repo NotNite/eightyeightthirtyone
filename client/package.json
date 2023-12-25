@@ -15,8 +15,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-force-graph-2d": "^1.25.3",
-    "react-force-graph-3d": "^1.24.1",
-    "sigma": "^3.0.0-beta.4"
+    "react-force-graph-3d": "^1.24.1"
   },
   "devDependencies": {
     "@parcel/transformer-inline-string": "^2.10.3",
@@ -28,7 +27,6 @@
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
-    "parcel": "^2.10.3",
     "typescript": "^5.3.3",
     "vite": "^5.0.10"
   }
