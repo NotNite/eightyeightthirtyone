@@ -350,23 +350,7 @@ async fn post_work(
             // Add link to the known pages and the queue if it doesn't exist yet
             // TODO: this should also consider if the link querying is expired
             let exists: bool = redis.sismember("pages", &to).await?;
-            let now = chrono::Utc::now().timestamp();
-            let week_ago = now - (60 * 60 * 24 * 7);
-            let last_scraped = if !exists {
-                0
-            } else {
-                redis
-                    .hget::<String, _, String>(
-                        format!("pages:data:{}", to),
-                        "lastScraped".to_string(),
-                    )
-                    .await
-                    .unwrap_or("0".to_string())
-                    .parse::<i64>()
-                    .unwrap_or(0)
-            };
-
-            if !exists || last_scraped == 0 || last_scraped < week_ago {
+            if !exists {
                 redis.sadd("pages", &[to.clone()]).await?;
                 redis
                     .hset(
