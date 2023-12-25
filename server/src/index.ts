@@ -163,6 +163,9 @@ async function fillQueue() {
       queue.push(link.dstUrl);
     }
   }
+
+  // Shuffle
+  queue = queue.sort(() => Math.random() - 0.5);
 }
 
 async function pruneQueue() {
@@ -218,7 +221,7 @@ router.get("/work", async (ctx) => {
     return;
   }
 
-  ctx.body = queue.pop();
+  ctx.body = queue.shift();
   console.log("Queue length:", queue.length);
   if (queue.length <= 0) {
     await fillQueue();
