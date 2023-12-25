@@ -455,6 +455,10 @@ async fn graph(
                     .entry(page_domain.clone())
                     .or_default()
                     .push(link_domain.clone());
+
+                graph.links_to.entry(link_domain.clone()).or_default();
+                graph.linked_from.entry(link_domain.clone()).or_default();
+                graph.images.entry(link_domain.clone()).or_default();
             }
         }
 
@@ -481,6 +485,10 @@ async fn graph(
                     .or_default()
                     .push(link_domain.clone());
 
+                graph.links_to.entry(link_domain.clone()).or_default();
+                graph.linked_from.entry(link_domain.clone()).or_default();
+                graph.images.entry(link_domain.clone()).or_default();
+
                 let image_hash = redis
                     .hget::<String, _, String>(
                         format!("link:{}:{}", page_b64, link_from),
@@ -499,7 +507,20 @@ async fn graph(
         }
     }
 
-    // Return the graph as JSON
+    // Deduplicate
+    for (_, links) in graph.links_to.iter_mut() {
+        links.sort();
+        links.dedup();
+    }
+    for (_, links) in graph.linked_from.iter_mut() {
+        links.sort();
+        links.dedup();
+    }
+    for (_, hashes) in graph.images.iter_mut() {
+        hashes.sort();
+        hashes.dedup();
+    }
+
     Ok(Json(graph).into_response())
 }
 
