@@ -86,11 +86,26 @@ fn get_domain(url: &str) -> Option<String> {
     Some(domain.to_string())
 }
 
-async fn is_valid(redis: Arc<Mutex<RedisClient>>, token: String) -> anyhow::Result<bool> {
+async fn auth_valid(redis: Arc<Mutex<RedisClient>>, token: String) -> anyhow::Result<bool> {
     let redis = redis.lock().await;
     let key = format!("auth:keys:{}", token);
     let exists: bool = redis.exists(&key).await?;
     Ok(exists)
+}
+
+fn url_valid(url: &str) -> bool {
+    let url = url::Url::parse(url);
+    if url.is_err() {
+        return false;
+    }
+    let url = url.unwrap();
+
+    let scheme = url.scheme();
+    if scheme != "http" && scheme != "https" {
+        return false;
+    }
+
+    true
 }
 
 async fn create_account(
@@ -115,7 +130,7 @@ async fn get_work(
     AuthBearer(token): AuthBearer,
     State(state): State<AppState>,
 ) -> AppResult<Response<Body>> {
-    if !is_valid(state.redis.clone(), token.clone()).await? {
+    if !auth_valid(state.redis.clone(), token.clone()).await? {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
@@ -139,7 +154,7 @@ async fn post_work(
     State(state): State<AppState>,
     Json(work): Json<WorkSchema>,
 ) -> AppResult<Response<Body>> {
-    if !is_valid(state.redis.clone(), token.clone()).await? {
+    if !auth_valid(state.redis.clone(), token.clone()).await? {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
@@ -147,7 +162,7 @@ async fn post_work(
     let result_url = state.base64.encode(work.result_url.as_bytes());
 
     let redis = state.redis.lock().await;
-    let max_pages: u64 = redis
+    let max_pages: usize = redis
         .get::<String, _>("domains:max_pages")
         .await
         .unwrap_or("100".to_string())
@@ -160,13 +175,17 @@ async fn post_work(
         .srem(format!("inprogress:{}", api_key_hash), &[orig_url.clone()])
         .await?;
 
+    if !url_valid(&work.orig_url) || !url_valid(&work.result_url) {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
+    }
+
     let result_domain = get_domain(&work.result_url);
     if result_domain.is_none() {
         return Ok(StatusCode::BAD_REQUEST.into_response());
     }
 
-    // Handle redirect updates
     if work.orig_url != work.result_url {
+        // Update redirect table
         redis
             .set(
                 format!("redirect:{}", orig_url),
@@ -176,6 +195,79 @@ async fn post_work(
                 false,
             )
             .await?;
+
+        // Merge page record
+        let orig_data = redis
+            .hgetall::<HashMap<String, String>, _>(format!("pages:data:{}", orig_url))
+            .await
+            .ok();
+
+        if let Some(orig_data) = orig_data {
+            redis
+                .hset(
+                    format!("pages:data:{}", result_url),
+                    orig_data
+                        .into_iter()
+                        .map(|(k, v)| (k, v.to_string()))
+                        .collect::<HashMap<String, String>>(),
+                )
+                .await?;
+
+            redis.del(format!("pages:data:{}", orig_url)).await?;
+        }
+
+        // Update link information
+        let links_to = redis
+            .smembers::<Vec<String>, _>(format!("pages:linksto:{}", orig_url))
+            .await
+            .unwrap_or_default();
+        for link_to in links_to {
+            let orig_link_data = redis
+                .hgetall::<HashMap<String, String>, _>(format!("link:{}:{}", orig_url, link_to))
+                .await
+                .ok();
+            if let Some(orig_link_data) = orig_link_data {
+                redis
+                    .hset(
+                        format!("link:{}:{}", result_url, link_to),
+                        orig_link_data
+                            .into_iter()
+                            .map(|(k, v)| (k, v.to_string()))
+                            .collect::<HashMap<String, String>>(),
+                    )
+                    .await?;
+            }
+        }
+        redis.del(format!("pages:linksto:{}", orig_url)).await?;
+
+        let linked_from = redis
+            .smembers::<Vec<String>, _>(format!("pages:linkedfrom:{}", orig_url))
+            .await
+            .unwrap_or_default();
+        for link_from in linked_from {
+            let orig_link_data = redis
+                .hgetall::<HashMap<String, String>, _>(format!("link:{}:{}", link_from, orig_url))
+                .await
+                .ok();
+            if let Some(orig_link_data) = orig_link_data {
+                redis
+                    .hset(
+                        format!("link:{}:{}", link_from, result_url),
+                        orig_link_data
+                            .into_iter()
+                            .map(|(k, v)| (k, v.to_string()))
+                            .collect::<HashMap<String, String>>(),
+                    )
+                    .await?;
+            }
+        }
+        redis.del(format!("pages:linkedfrom:{}", orig_url)).await?;
+
+        // Update page sets
+        redis.sadd("pages", &[result_url.clone()]).await?;
+        redis.sadd("pages:visited", &[result_url.clone()]).await?;
+        redis.srem("pages", &[orig_url.clone()]).await?;
+        redis.srem("pages:visited", &[orig_url.clone()]).await?;
     } else {
         redis.del(format!("redirect:{}", orig_url)).await?;
     }
@@ -205,6 +297,10 @@ async fn post_work(
     // Discover links
     if let Some(links) = work.links {
         for link in links {
+            if !url_valid(&link.to) || !url_valid(&link.image) {
+                continue;
+            }
+
             let to = state.base64.encode(link.to.as_bytes());
             let to_domain = get_domain(&link.to);
             if to_domain.is_none() {
@@ -221,7 +317,7 @@ async fn post_work(
             }
 
             let pages = redis
-                .pfcount::<u64, _>(format!("domain:pages:{}", to_domain.clone()))
+                .pfcount::<usize, _>(format!("domain:pages:{}", to_domain.clone()))
                 .await?;
             if pages >= max_pages {
                 continue;
@@ -254,7 +350,23 @@ async fn post_work(
             // Add link to the known pages and the queue if it doesn't exist yet
             // TODO: this should also consider if the link querying is expired
             let exists: bool = redis.sismember("pages", &to).await?;
-            if !exists {
+            let now = chrono::Utc::now().timestamp();
+            let week_ago = now - (60 * 60 * 24 * 7);
+            let last_scraped = if !exists {
+                0
+            } else {
+                redis
+                    .hget::<String, _, String>(
+                        format!("pages:data:{}", to),
+                        "lastScraped".to_string(),
+                    )
+                    .await
+                    .unwrap_or("0".to_string())
+                    .parse::<i64>()
+                    .unwrap_or(0)
+            };
+
+            if !exists || last_scraped == 0 || last_scraped < week_ago {
                 redis.sadd("pages", &[to.clone()]).await?;
                 redis
                     .hset(
@@ -274,6 +386,7 @@ async fn post_work(
         }
     }
 
+    println!("Processed {}", work.result_url);
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
@@ -438,7 +551,7 @@ async fn post_badge(
     Path(sha256): Path<String>,
     image: Bytes,
 ) -> AppResult<Response<Body>> {
-    if !is_valid(state.redis.clone(), token.clone()).await? {
+    if !auth_valid(state.redis.clone(), token.clone()).await? {
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
@@ -472,6 +585,78 @@ async fn statistics(State(state): State<AppState>) -> AppResult<Json<Statistics>
     }))
 }
 
+async fn update_queue(state: &AppState) -> anyhow::Result<()> {
+    println!("Updating queue...");
+
+    let now = chrono::Utc::now().timestamp();
+    let week_ago = now - (60 * 60 * 24 * 7);
+
+    let redis = state.redis.lock().await;
+    redis.del("pages:queue").await?;
+
+    let max_pages: usize = redis
+        .get::<String, _>("domains:max_pages")
+        .await
+        .unwrap_or("100".to_string())
+        .parse()
+        .unwrap_or(100);
+
+    let pages = redis.smembers::<Vec<String>, _>("pages").await?;
+    for page in pages {
+        let last_scraped = redis
+            .hget::<String, _, String>(format!("pages:data:{}", page), "lastScraped".to_string())
+            .await
+            .unwrap_or("0".to_string())
+            .parse::<i64>()
+            .unwrap_or(0);
+
+        if last_scraped == 0 || last_scraped < week_ago {
+            // Safety check here just in case
+            if redis.sismember("domains:denylist", page.clone()).await? {
+                continue;
+            }
+
+            let pages = redis
+                .pfcount::<usize, _>(format!("domain:pages:{}", page.clone()))
+                .await?;
+            if pages >= max_pages {
+                continue;
+            }
+
+            let redirect: Option<String> = redis
+                .get(format!("redirect:{}", page))
+                .await
+                .unwrap_or(None);
+
+            if let Some(redirect) = redirect {
+                // Duplicate safety checks for the redirect URL
+                if redis
+                    .sismember("domains:denylist", redirect.clone())
+                    .await?
+                {
+                    continue;
+                }
+
+                let pages = redis
+                    .pfcount::<usize, _>(format!("domain:pages:{}", redirect.clone()))
+                    .await?;
+                if pages >= max_pages {
+                    continue;
+                }
+
+                redis.rpush("pages:queue", &[redirect]).await?;
+            } else {
+                redis.rpush("pages:queue", &[page.clone()]).await?;
+            }
+        }
+    }
+
+    let queue_size = redis.llen::<usize, _>("pages:queue").await?;
+    println!("Queue updated, new size: {}", queue_size);
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config_path = std::env::args().nth(1).unwrap_or("config.json".to_string());
@@ -487,6 +672,8 @@ async fn main() -> anyhow::Result<()> {
         redis: Arc::new(Mutex::new(client)),
         base64: base64::prelude::BASE64_STANDARD,
     };
+
+    update_queue(&app_state).await?;
 
     let app = Router::new()
         .route("/create_account", post(create_account))

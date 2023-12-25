@@ -25,12 +25,5 @@ dist-ssr
 
 .env.local
 .env.production
-
-graph.json
-graph.bak.json
-config.json
-target/
-images/
-redis/
-database.db*
 .env*
+graph.json

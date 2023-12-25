@@ -250,7 +250,7 @@ async fn try_work(
             client
                 .post(&format!("{}/work", config.host))
                 .header("Content-Type", "application/json")
-                .header("Authorization", config.key.clone())
+                .header("Authorization", format!("Bearer {}", config.key.clone()))
                 .body(
                     serde_json::to_string(&WorkSchema {
                         orig_url: url.to_string(),
