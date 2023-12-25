@@ -30,7 +30,7 @@ The scrapers respect robots.txt, so block this user agent:
 Note that this only somewhat works:
 
 - You will still appear on the graph if anyone else links to you.
-- Previous entries in the database are not deleted - please email me your domain and affected URLs if known (email available [on my website](https://notnite.com)).
+- Previous entries in the database are not deleted - please email me your domain and affected URLs if known (see [Credits & contact](#credits--contact)).
 
 ## Credits & contact
 
@@ -42,5 +42,7 @@ This project wouldn't be possible without the following people:
   - for her help on the frontend, designing the project's 88x31, hosting a scraper node
 - [![breq](https://breq.dev/badges/breq.png)](https://breq.dev/)
   - for her help designing the Redis database schema
+
+If you have any questions or concerns, you can send an email to me (NotNite), which is [available on my website](https://notnite.com) (not written here for spam concerns).
 
 Thanks!
