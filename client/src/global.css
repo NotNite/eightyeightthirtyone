@@ -75,3 +75,8 @@ img {
   margin: 0;
   overflow: hidden;
 }
+
+/* sorry cosmograph lmao */
+[class*="style_module_watermark__"] {
+  display: none !important;
+}
