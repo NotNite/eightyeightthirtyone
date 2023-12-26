@@ -140,7 +140,7 @@ async fn process(
             }
 
             // If there are no rel=canonical links, we can try for opengraph tags
-            if canonical_url == None {
+            if canonical_url.is_none() {
                 let meta_tags = body.find_all(By::Tag("meta")).await?;
                 for meta_tag in meta_tags {
                     if meta_tag.attr("property").await? == Some("og:url".to_string()) {
@@ -236,14 +236,14 @@ async fn process(
                 }
 
                 // If there are no rel=canonical links, we can try for opengraph tags
-                if canonical_url == None {
+                if canonical_url.is_none() {
                     let meta_selector =
                         scraper::Selector::parse("meta[property=\"og:url\"]").unwrap();
                     let meta_tags = body.select(&meta_selector);
                     for meta_tag in meta_tags {
                         if let Some(href) = meta_tag.attr("content") {
                             if let Some(real_url) = url::Url::parse(&current_url)
-                                .and_then(|u| u.join(&href))
+                                .and_then(|u| u.join(href))
                                 .ok()
                                 .map(|u| u.to_string())
                             {
