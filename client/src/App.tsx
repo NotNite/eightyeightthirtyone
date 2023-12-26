@@ -137,7 +137,9 @@ export default function App() {
 
   return (
     <>
-      {graph != null && (
+      {graph == null ? (
+        <span>Loading... Please wait!</span>
+      ) : (
         <CosmographProvider nodes={graph.nodes} links={graph.links}>
           <Cosmograph
             nodeLabelColor="#ffffff"
