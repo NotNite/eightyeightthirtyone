@@ -125,10 +125,30 @@ export default function App() {
               }
             }}
             backgroundColor="#000000"
-            nodeColor="#ffffff"
             nodeSize={1}
             linkWidth={2}
             linkArrowsSizeScale={2}
+            linkGreyoutOpacity={1}
+            nodeGreyoutOpacity={1}
+            nodeColor={(node) => {
+              const color = "white";
+              if (origGraph == null) return color;
+
+              if (separation != null && separation.includes(node.id))
+                return "red";
+
+              const linksTo = origGraph.linksTo[node.id] ?? [];
+              const linkedFrom = origGraph.linkedFrom[node.id] ?? [];
+              if (selected != null) {
+                if (node.id === selected) return "red";
+                if (linksTo.includes(selected) && linkedFrom.includes(selected))
+                  return "cyan";
+                if (linksTo.includes(selected)) return "blue";
+                if (linkedFrom.includes(selected)) return "green";
+              }
+
+              return color;
+            }}
             linkColor={(link) => {
               const color = "grey";
               if (origGraph == null) return color;
