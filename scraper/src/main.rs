@@ -114,12 +114,65 @@ async fn process(
 
     let parsed_url = url::Url::parse(url).map_err(|e| ScrapeError::Unknown(e.into()))?;
     let mut result = Vec::new();
-    let mut current_url = parsed_url.clone();
+    let mut current_url = parsed_url.to_string();
 
     if let Some(driver) = driver {
-        driver.goto(url).await?;
-        current_url = driver.current_url().await?;
-        let body = driver.active_element().await?;
+        // Traverse any rel=canonical redirects
+        let body = loop {
+            driver.goto(current_url).await?;
+            current_url = driver.current_url().await?.to_string();
+            let body = driver.active_element().await?;
+
+            // Find the first rel=canonical link
+            let link_tags = body.find_all(By::Tag("link")).await?;
+            let mut canonical_url = None;
+            for link_tag in link_tags {
+                if let Some(href) = link_tag.attr("href").await? {
+                    if let Some(real_url) = url::Url::parse(&current_url)
+                        .and_then(|u| u.join(&href))
+                        .ok()
+                        .map(|u| u.to_string())
+                    {
+                        canonical_url = Some(real_url);
+                        break;
+                    }
+                }
+            }
+
+            // If there are no rel=canonical links, we can try for opengraph tags
+            if canonical_url == None {
+                let meta_tags = body.find_all(By::Tag("meta")).await?;
+                for meta_tag in meta_tags {
+                    if meta_tag.attr("property").await? == Some("og:url".to_string()) {
+                        if let Some(href) = meta_tag.attr("content").await? {
+                            if let Some(real_url) = url::Url::parse(&current_url)
+                                .and_then(|u| u.join(&href))
+                                .ok()
+                                .map(|u| u.to_string())
+                            {
+                                canonical_url = Some(real_url);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(real_url) = canonical_url {
+                if real_url == current_url {
+                    // The canonical entry is present and matches the current URL
+                    break body;
+                } else {
+                    // The canonical entry is present but contains a different URL
+                    // We continue searching on that URL instead
+                    current_url = real_url;
+                    continue;
+                }
+            } else {
+                // There is no rel=canonical tag
+                break body;
+            }
+        };
 
         let links = body.find_all(By::Tag("a")).await?;
         for link in links {
@@ -157,13 +210,67 @@ async fn process(
     } else {
         let mut queued_images: Vec<(String, String)> = Vec::new();
         {
-            let response = reqwest_client.get(url).send().await?;
-            current_url = response.url().clone();
-            let text = response.text().await?;
+            let document = loop {
+                let response = reqwest_client.get(current_url).send().await?;
+                current_url = response.url().to_string();
+                let text = response.text().await?;
 
-            let document = scraper::Html::parse_document(&text);
+                let document = scraper::Html::parse_document(&text);
+                let body = document.root_element();
+
+                let canonical_selector = scraper::Selector::parse("link[rel=canonical]").unwrap();
+                let canonical = body.select(&canonical_selector);
+
+                // Find the first rel=canonical link
+                let mut canonical_url = None;
+                for link in canonical {
+                    if let Some(href) = link.attr("href") {
+                        if let Some(real_url) = url::Url::parse(&current_url)
+                            .and_then(|u| u.join(href))
+                            .ok()
+                            .map(|u| u.to_string())
+                        {
+                            canonical_url = Some(real_url);
+                        }
+                    }
+                }
+
+                // If there are no rel=canonical links, we can try for opengraph tags
+                if canonical_url == None {
+                    let meta_selector =
+                        scraper::Selector::parse("meta[property=\"og:url\"]").unwrap();
+                    let meta_tags = body.select(&meta_selector);
+                    for meta_tag in meta_tags {
+                        if let Some(href) = meta_tag.attr("content") {
+                            if let Some(real_url) = url::Url::parse(&current_url)
+                                .and_then(|u| u.join(&href))
+                                .ok()
+                                .map(|u| u.to_string())
+                            {
+                                canonical_url = Some(real_url);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if let Some(real_url) = canonical_url {
+                    if real_url == current_url {
+                        // The canonical entry is present and matches the current URL
+                        break document;
+                    } else {
+                        // The canonical entry is present but contains a different URL
+                        // We continue searching on that URL instead
+                        current_url = real_url;
+                        continue;
+                    }
+                } else {
+                    // There is no rel=canonical tag
+                    break document;
+                }
+            };
+
             let body = document.root_element();
-
             let selector = scraper::Selector::parse("a").unwrap();
             let links = body.select(&selector);
             for link in links {
