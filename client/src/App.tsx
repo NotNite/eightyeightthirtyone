@@ -11,9 +11,12 @@ type ScrapedGraph = {
   images: Record<string, string[]>;
 };
 
+type CustomNode = { id: string };
+type CustomLink = { source: string; target: string };
+
 type Graph = {
-  nodes: { id: string }[];
-  links: { source: string; target: string }[];
+  nodes: CustomNode[];
+  links: CustomLink[];
 };
 
 export default function App() {
@@ -21,6 +24,7 @@ export default function App() {
   const [graph, setGraph] = React.useState<Graph | null>(null);
   const graphRef = React.useRef<CosmographRef>(null);
 
+  const [filtered, setFiltered] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<string | null>(null);
   const [separation, setSeparation] = React.useState<string[] | null>(null);
   const [extendedInfo, setExtendedInfo] = React.useState(false);
@@ -70,10 +74,25 @@ export default function App() {
     graphRef.current?.zoomToNode(node);
   }
 
-  function select(domain: string) {
+  function doSelectFilter(domain: string) {
+    if (origGraph == null || graphRef.current == null) return;
+    let filter = [domain];
+    filter = filter.concat(origGraph.linksTo[domain] ?? []);
+    filter = filter.concat(origGraph.linkedFrom[domain] ?? []);
+    filter = filter.concat(separation ?? []);
+    filter = [...new Set(filter)];
+    graphRef.current?.selectNodes(filter.map((x) => ({ id: x })));
+  }
+
+  function select(domain: string | null, doPan: boolean) {
     setSelected(domain);
-    pan(domain);
     setSeparation(null);
+    if (domain != null) {
+      if (doPan) pan(domain);
+      doSelectFilter(domain);
+    } else {
+      graphRef.current?.unselectNodes();
+    }
   }
 
   function bfs(from: string, to: string) {
@@ -107,6 +126,15 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
+  function pastel(str: string) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    return `hsl(${hash % 360}, 50%, 80%)`;
+  }
+
   return (
     <>
       {graph != null && (
@@ -117,22 +145,18 @@ export default function App() {
             className="graph"
             ref={graphRef}
             onClick={(e) => {
-              setSelected(e?.id ?? null);
-              if (e != null) {
-                graphRef.current?.selectNode(e);
-              } else {
-                graphRef.current?.unselectNodes();
-              }
+              select(e?.id ?? null, false);
             }}
             backgroundColor="#000000"
             nodeSize={1}
             linkWidth={2}
             linkArrowsSizeScale={2}
-            linkGreyoutOpacity={1}
-            nodeGreyoutOpacity={1}
+            linkGreyoutOpacity={0.25}
+            nodeGreyoutOpacity={0.25}
             nodeColor={(node) => {
-              const color = "white";
-              if (origGraph == null) return color;
+              if (filtered.length !== 0 && !filtered.includes(node.id))
+                return "transparent";
+              if (origGraph == null) return pastel(node.id);
 
               if (separation != null && separation.includes(node.id))
                 return "red";
@@ -143,14 +167,25 @@ export default function App() {
                 if (node.id === selected) return "red";
                 if (linksTo.includes(selected) && linkedFrom.includes(selected))
                   return "cyan";
-                if (linksTo.includes(selected)) return "blue";
-                if (linkedFrom.includes(selected)) return "green";
+                if (linksTo.includes(selected)) return "green";
+                if (linkedFrom.includes(selected)) return "blue";
+
+                return "white";
               }
 
-              return color;
+              return pastel(node.id);
             }}
             linkColor={(link) => {
-              const color = "grey";
+              if (
+                filtered.length !== 0 &&
+                !(
+                  filtered.includes(link.source) &&
+                  filtered.includes(link.target)
+                )
+              )
+                return "transparent";
+
+              const color = "#202020";
               if (origGraph == null) return color;
 
               const source = link.source;
@@ -223,37 +258,33 @@ export default function App() {
             <input
               type="range"
               min="0"
-              max="25"
+              max="10"
               step="1"
               defaultValue="0"
               onChange={(e) => {
                 if (
                   selected == null ||
                   graph == null ||
-                  graphRef.current == null
+                  graphRef.current == null ||
+                  origGraph == null
                 )
                   return;
                 const value = parseInt(e.currentTarget.value);
 
                 if (value === 0) {
-                  graphRef.current?.unselectNodes();
+                  setFiltered([]);
                 } else {
                   let domains = [selected];
 
                   for (let i = value; i > 0; i--) {
                     for (const domain of domains) {
-                      domains = domains.concat(
-                        origGraph?.linksTo[domain] ?? []
-                      );
+                      domains = domains.concat(origGraph.linksTo[domain] ?? []);
                     }
 
                     domains = [...new Set(domains)];
-                    graphRef.current?.selectNodes(
-                      domains.map((x) => ({
-                        id: x
-                      }))
-                    );
                   }
+
+                  setFiltered(domains);
                 }
               }}
             />
@@ -264,7 +295,7 @@ export default function App() {
               placeholder="Search"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && graph != null) {
-                  select(e.currentTarget.value);
+                  select(e.currentTarget.value, true);
                 }
               }}
             />
@@ -294,7 +325,7 @@ export default function App() {
                 <ul>
                   {(origGraph?.linksTo[selected] ?? []).map((x, i) => (
                     <li key={i}>
-                      <button onClick={() => select(x)}>{x}</button>
+                      <button onClick={() => select(x, true)}>{x}</button>
                     </li>
                   ))}
                 </ul>
@@ -303,7 +334,7 @@ export default function App() {
                 <ul>
                   {(origGraph?.linkedFrom[selected] ?? []).map((x, i) => (
                     <li key={i}>
-                      <button onClick={() => select(x)}>{x}</button>
+                      <button onClick={() => select(x, true)}>{x}</button>
                     </li>
                   ))}
                 </ul>
@@ -332,6 +363,9 @@ export default function App() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && graph != null) {
                       setSeparation(bfs(selected, e.currentTarget.value));
+                      if (graphRef.current != null) {
+                        graphRef.current.selectNodes([]);
+                      }
                     }
                   }}
                 />
@@ -339,7 +373,7 @@ export default function App() {
                   <ul>
                     {separation.map((x, i) => (
                       <li key={i}>
-                        <button onClick={() => select(x)}>{x}</button>
+                        <button onClick={() => select(x, true)}>{x}</button>
                       </li>
                     ))}
                   </ul>

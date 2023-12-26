@@ -1,7 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter&display=swap");
 
 html,
-body {
+body,
+#root {
   margin: 0;
   padding: 0;
   width: 100vw;
