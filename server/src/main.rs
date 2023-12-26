@@ -433,7 +433,16 @@ async fn graph(
     let redis = state.redis.lock().await;
     let pages = redis.smembers::<Vec<String>, _>("pages").await?;
     for page_b64 in pages {
+        let redirect = redis
+            .get::<String, _>(format!("redirect:{}", page_b64))
+            .await
+            .ok();
+        if redirect.is_some() {
+            continue;
+        }
+
         let page = String::from_utf8(state.base64.decode(&page_b64)?)?;
+
         let page_domain = get_domain(&page);
         if page_domain.is_none() {
             continue;
