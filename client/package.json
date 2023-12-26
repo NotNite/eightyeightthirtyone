@@ -10,12 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-hook/window-size": "^3.1.1",
-    "puppeteer": "^21.6.1",
+    "@cosmograph/react": "^1.2.0",
+    "cytoscape": "^3.28.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-force-graph-2d": "^1.25.3",
-    "react-force-graph-3d": "^1.24.1"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@parcel/transformer-inline-string": "^2.10.3",

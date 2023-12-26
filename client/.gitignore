@@ -27,3 +27,4 @@ dist-ssr
 .env.production
 .env*
 graph.json
+processed.json
