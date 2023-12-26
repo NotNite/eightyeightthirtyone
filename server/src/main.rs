@@ -13,10 +13,11 @@ use fred::{
     clients::RedisClient,
     interfaces::{
         ClientLike, HashesInterface, HyperloglogInterface, KeysInterface, ListInterface,
-        SetsInterface, TransactionInterface,
+        SetsInterface, SortedSetsInterface, TransactionInterface,
     },
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -62,6 +63,7 @@ struct Statistics {
     pub queue: usize,
     pub visited_pages: usize,
     pub known_pages: usize,
+    pub leaderboard: Vec<(String, u64)>,
 }
 
 struct AppError(anyhow::Error);
@@ -371,6 +373,10 @@ async fn post_work(
         }
     }
 
+    redis
+        .zincrby("scraper:leaderboard", 1.0, api_key_hash)
+        .await?;
+
     println!("Processed {}", work.result_url);
     Ok(StatusCode::NO_CONTENT.into_response())
 }
@@ -584,10 +590,31 @@ async fn statistics(State(state): State<AppState>) -> AppResult<Json<Statistics>
     let visited_pages: usize = redis.scard("pages:visited").await.unwrap_or(0);
     let known_pages: usize = redis.scard("pages").await.unwrap_or(0);
 
+    let top_scrapers = redis
+        .zrange::<Vec<String>, _, _, _>("scraper:leaderboard", 0, 9, None, false, None, true)
+        .await?;
+
+    let mut leaderboard = Vec::new();
+    for chunk in top_scrapers.chunks_exact(2) {
+        // ZRANGE WITHSCORES returns results as
+        // [item0, score0, item1, score1, item2, ...]
+
+        // Hash the API key so it's identifiable if you know the key,
+        // but otherwise anonymous
+        let mut hasher = Sha256::new();
+        hasher.update(&chunk[0]);
+        let api_key_hash = hasher.finalize();
+        let api_key_hash_b64 = state.base64.encode(api_key_hash);
+
+        let score = str::parse::<u64>(&chunk[1]).unwrap();
+        leaderboard.push((api_key_hash_b64, score))
+    }
+
     Ok(Json(Statistics {
         queue,
         visited_pages,
         known_pages,
+        leaderboard,
     }))
 }
 
