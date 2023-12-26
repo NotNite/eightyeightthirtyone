@@ -262,9 +262,12 @@ async fn post_work(
             }
         }
         redis.del(format!("pages:linkedfrom:{}", orig_url)).await?;
-        redis
-            .sadd(format!("pages:linkedfrom:{}", result_url), linked_from)
-            .await?;
+
+        if !linked_from.is_empty() {
+            redis
+                .sadd(format!("pages:linkedfrom:{}", result_url), linked_from)
+                .await?;
+        }
 
         // Update page sets
         redis.sadd("pages", &[result_url.clone()]).await?;
@@ -274,11 +277,6 @@ async fn post_work(
     } else {
         redis.del(format!("redirect:{}", orig_url)).await?;
     }
-
-    // TODO: handle link redirects changing properly
-    //  - merge the two records together
-    //  - update old links
-    //  - update page set
 
     // Update the page metadata
     redis
