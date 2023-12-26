@@ -17,6 +17,7 @@ use fred::{
     },
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -592,18 +593,23 @@ async fn statistics(State(state): State<AppState>) -> AppResult<Json<Statistics>
     let known_pages: usize = redis.scard("pages").await.unwrap_or(0);
 
     let top_scrapers = redis
-        .zrange::<Vec<(String, u64)>, _, _, _>("scraper:leaderboard", 0, 9, None, false, None, true)
+        .zrange::<Vec<String>, _, _, _>("scraper:leaderboard", 0, 9, None, false, None, true)
         .await?;
 
     let mut leaderboard = Vec::new();
-    for (api_key_hash, score) in top_scrapers {
-        let token = state
-            .base64
-            .decode(api_key_hash)
-            .map(|v| String::from_utf8(v).unwrap_or("".to_owned()))
-            .unwrap_or("".to_owned());
-        let desc = redis.get(format!("auth:keys:{}", token)).await?;
-        leaderboard.push((desc, score))
+    for chunk in top_scrapers.chunks_exact(2) {
+        // ZRANGE WITHSCORES returns results as
+        // [item0, score0, item1, score1, item2, ...]
+
+        // Hash the API key so it's identifiable if you know the key,
+        // but otherwise anonymous
+        let mut hasher = Sha256::new();
+        hasher.update(&chunk[0]);
+        let api_key_hash = hasher.finalize();
+        let api_key_hash_b64 = state.base64.encode(api_key_hash);
+
+        let score = str::parse::<u64>(&chunk[1]).unwrap();
+        leaderboard.push((api_key_hash_b64, score))
     }
 
     Ok(Json(Statistics {
