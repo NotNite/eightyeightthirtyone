@@ -13,7 +13,7 @@ use fred::{
     clients::RedisClient,
     interfaces::{
         ClientLike, HashesInterface, HyperloglogInterface, KeysInterface, ListInterface,
-        SetsInterface, TransactionInterface,
+        SetsInterface, SortedSetsInterface, TransactionInterface,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -62,6 +62,7 @@ struct Statistics {
     pub queue: usize,
     pub visited_pages: usize,
     pub known_pages: usize,
+    pub leaderboard: Vec<(String, u64)>,
 }
 
 struct AppError(anyhow::Error);
@@ -373,6 +374,10 @@ async fn post_work(
         }
     }
 
+    redis
+        .zincrby("scraper:leaderboard", 1.0, api_key_hash)
+        .await?;
+
     println!("Processed {}", work.result_url);
     Ok(StatusCode::NO_CONTENT.into_response())
 }
@@ -586,10 +591,26 @@ async fn statistics(State(state): State<AppState>) -> AppResult<Json<Statistics>
     let visited_pages: usize = redis.scard("pages:visited").await.unwrap_or(0);
     let known_pages: usize = redis.scard("pages").await.unwrap_or(0);
 
+    let top_scrapers = redis
+        .zrange::<Vec<(String, u64)>, _, _, _>("scraper:leaderboard", 0, 9, None, false, None, true)
+        .await?;
+
+    let mut leaderboard = Vec::new();
+    for (api_key_hash, score) in top_scrapers {
+        let token = state
+            .base64
+            .decode(api_key_hash)
+            .map(|v| String::from_utf8(v).unwrap_or("".to_owned()))
+            .unwrap_or("".to_owned());
+        let desc = redis.get(format!("auth:keys:{}", token)).await?;
+        leaderboard.push((desc, score))
+    }
+
     Ok(Json(Statistics {
         queue,
         visited_pages,
         known_pages,
+        leaderboard,
     }))
 }
 
