@@ -150,7 +150,12 @@ export default function App() {
               select(e?.id ?? null, false);
             }}
             backgroundColor="#000000"
-            nodeSize={1}
+            nodeSize={(node) => {
+              if (filtered.length !== 0 && !filtered.includes(node.id))
+                return 0;
+
+              return 1;
+            }}
             linkWidth={2}
             linkArrowsSizeScale={2}
             linkGreyoutOpacity={0.25}
@@ -264,18 +269,19 @@ export default function App() {
               step="1"
               defaultValue="0"
               onChange={(e) => {
-                if (
-                  selected == null ||
-                  graph == null ||
-                  graphRef.current == null ||
-                  origGraph == null
-                )
-                  return;
                 const value = parseInt(e.currentTarget.value);
 
                 if (value === 0) {
                   setFiltered([]);
                 } else {
+                  if (
+                    selected == null ||
+                    graph == null ||
+                    graphRef.current == null ||
+                    origGraph == null
+                  )
+                    return;
+
                   let domains = [selected];
 
                   for (let i = value; i > 0; i--) {
