@@ -22,6 +22,9 @@ type Graph = {
 export default function App() {
   const [origGraph, setOrigGraph] = React.useState<ScrapedGraph | null>(null);
   const [graph, setGraph] = React.useState<Graph | null>(null);
+  const [webglSupported, setWebglSupported] = React.useState<boolean | null>(
+    null
+  );
   const graphRef = React.useRef<CosmographRef>(null);
 
   const [filtered, setFiltered] = React.useState<string[]>([]);
@@ -63,7 +66,23 @@ export default function App() {
       setGraph({ nodes, links });
     }
 
-    createGraphData();
+    let webglSupported = false;
+
+    // Detect if webgl is supported
+    try {
+      const canvas = document.createElement("canvas");
+      webglSupported =
+        !!window.WebGLRenderingContext &&
+        (canvas.getContext("webgl") != null ||
+          canvas.getContext("experimental-webgl") != null);
+    } catch (e) {
+      // noop
+    }
+    setWebglSupported(webglSupported)
+
+    // For some reason if the graph fails to create, it nukes all react elements
+    if (webglSupported) createGraphData();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -72,6 +91,7 @@ export default function App() {
     if (node == null) return;
     graphRef.current?.fitViewByNodeIds([domain]);
     graphRef.current?.zoomToNode(node);
+    graphRef.current?.setZoomLevel(13);
   }
 
   function doSelectFilter(domain: string) {
@@ -137,7 +157,14 @@ export default function App() {
 
   return (
     <>
-      {graph == null ? (
+      {webglSupported === false ? (
+        <div>
+          WebGL is required to use this site, and it is unsupported or disabled
+          in your browser. See{" "}
+          <a href="http://get.webgl.org">http://get.webgl.org</a> for more
+          information
+        </div>
+      ) : graph == null ? (
         <span>Loading... Please wait!</span>
       ) : (
         <CosmographProvider nodes={graph.nodes} links={graph.links}>
