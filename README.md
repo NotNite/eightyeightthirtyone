@@ -38,10 +38,12 @@ This project wouldn't be possible without the following people:
 
 - [![notnite](https://notnite.com/buttons/notnite.png)](https://notnite.com/)
   - for starting the project, hosting the website and server
-- [![adryd](https://adryd.com/static/buttons/adryd.png)](https://adryd.com)
+- [![adryd](https://adryd.com/static/buttons/adryd.png)](https://adryd.com/)
   - for her help on the frontend, designing the project's 88x31, hosting a scraper node
 - [![breq](https://breq.dev/badges/breq.png)](https://breq.dev/)
   - for her help designing the Redis database schema, contributions to the server
+- [![Inferno Comms](https://notnite.com/buttons/infernocomms.png)](https://connormcf.com/)
+  - for lending us a server to host a scraper node on
 
 If you have any questions or concerns, you can send an email to me (NotNite), which is [available on my website](https://notnite.com) (not written here for spam concerns).
 
