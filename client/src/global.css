@@ -1,5 +1,47 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter&display=swap");
 
+:root {
+  --panel-background-color: rgba(0, 0, 0, 0.6);
+  --panel-background-blur: 10px;
+  --panel-border-size: 0.3rem;
+}
+
+:root {
+  --dark-0: hsl(0, 0%, 0%);
+  --dark-1: hsl(0, 0%, 8%);
+  --dark-2: hsl(0, 0%, 14%);
+  --dark-3: hsl(0, 0%, 18%);
+  --dark-4: hsl(0, 0%, 25%);
+  --dark-5: hsl(0, 0%, 35%);
+  --highlight-0: hsl(0, 0%, 100%);
+  --highlight-1: hsl(0, 0%, 92%);
+  --highlight-2: hsl(0, 0%, 75%);
+  --highlight-3: hsl(0, 0%, 65%);
+
+  --color-scheme-filter: none;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+
+    /* Text is more distinct with more transparency */
+    --panel-background-color: rgba(0, 0, 0, 0.3);
+
+    --dark-0: hsl(0, 0%, 100%);
+    --dark-1: hsl(0, 0%, 92%);
+    --dark-2: hsl(0, 0%, 86%);
+    --dark-3: hsl(0, 0%, 82%);
+    --dark-4: hsl(0, 0%, 75%);
+    --dark-5: hsl(0, 0%, 65%);
+    --highlight-0: hsl(0, 0%, 0%);
+    --highlight-1: hsl(0, 0%, 8%);
+    --highlight-2: hsl(0, 0%, 25%);
+    --highlight-3: hsl(0, 0%, 35%);
+
+    --color-scheme-filter: invert(100%);
+  }
+}
+
 html,
 body,
 #root {
@@ -8,57 +50,125 @@ body,
   width: 100vw;
   height: 100vh;
   font-family: "Inter", sans-serif;
-  background-color: black;
-  color: white;
+  background-color: var(--dark-0);
+  color: var(--highlight-0);
+}
+
+canvas {
+  filter: var(--color-scheme-filter);
+}
+
+.loadingScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  margin-block: 0;
+  z-index: -10;
 }
 
 .controls {
   position: absolute;
   bottom: 0;
   right: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--panel-background-color);
+  backdrop-filter: blur(var(--panel-background-blur));
   padding: 0.5rem;
   max-width: 20rem;
 
+  border-radius: 0.5rem 0 0 0;
+  border-style: solid none none solid;
+  border-width: var(--panel-border-size) 0 0 var(--panel-border-size);
+  border-color: var(--dark-3);
+
   display: flex;
   flex-direction: column;
-  color: white;
   z-index: 5;
+
+  > :not(:last-child) {
+    margin: 0.2rem 0;
+    width: 100%;
+  }
+
+  > .by {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5ch;
+  }
 }
 
-.controls > .by {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5ch;
+.about {
+  & > p:first-child {
+    margin: 0;
+  }
+}
+
+.hasBadge {
+  max-width: 88px;
+  max-height: 31px;
+  min-width: 88px;
+  min-height: 31px;
 }
 
 .buttonsAndStuff {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   justify-content: space-between;
   align-items: center;
   gap: 0.5ch;
+}
+
+.searchInput {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  max-width: 100%;
+  gap: 0.3ch;
 }
 
 .infobox {
   position: absolute;
   top: 0;
   left: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  padding: 1rem;
   height: calc(100vh - 2rem);
+  padding: 1rem;
+  color: var(--highlight-1);
+  background-color: var(--panel-background-color);
+  backdrop-filter: blur(var(--panel-background-blur));
+  border-right: var(--dark-2) var(--panel-border-size) solid;
 }
 
 .infoboxInner {
   max-height: calc(100vh - 2rem);
   overflow: scroll;
+  padding-right: 2rem;
+
+  /* Center the list markers  */
+
+  li {
+    display: flex;
+    align-items: center;
+  }
+
+  li::before {
+    content: "";
+    min-width: 0.3rem;
+    min-height: 0.3rem;
+    border-radius: 50%;
+    background: var(--highlight-1);
+    margin-right: 0.5rem;
+  }
+
+  .badgesList > li {
+    margin: 0.21rem 0;
+  }
 }
 
 a {
-  color: white;
+  color: var(--highlight-1);
 }
 
 img {
@@ -74,6 +184,29 @@ img {
   padding: 0;
   margin: 0;
   overflow: hidden;
+}
+
+input[type="text"],
+button {
+  background-color: var(--dark-3);
+  border: var(--dark-5) .15rem solid;
+  border-radius: .15rem;
+  color: var(--highlight-1);
+  margin: .1rem 0;
+}
+
+input[type="text"] {
+  width: 100%;
+}
+
+input[type="text"]:focus-visible,
+button:focus-visible {
+  border: var(--highlight-2) .15rem solid;
+  outline: none;
+}
+
+button:hover {
+  cursor: pointer;
 }
 
 /* sorry cosmograph lmao */
