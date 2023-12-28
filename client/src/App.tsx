@@ -35,6 +35,7 @@ export default function App() {
   React.useEffect(() => {
     async function createGraphData() {
       const origGraph: ScrapedGraph = await fetch(
+        "https://eightyeightthirty.one" + // Uncomment if running locally, and install a CORS bypass extension
         "/graph.json?t=" + Date.now()
       ).then((x) => x.json());
       setOrigGraph(origGraph);
