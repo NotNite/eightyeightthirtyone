@@ -97,9 +97,7 @@ export default function App() {
   function pan(domain: string) {
     const node = graph?.nodes.find((x) => x.id === domain);
     if (node == null) return;
-    graphRef.current?.fitViewByNodeIds([domain]);
     graphRef.current?.zoomToNode(node);
-    graphRef.current?.setZoomLevel(13);
   }
 
   function doSelectFilter(domain: string) {
@@ -166,316 +164,307 @@ export default function App() {
     return `hsl(${hash % 360}, 50%, 80%)`;
   }
 
+  if (webglSupported === false) {
+    return (
+      <div>
+        WebGL is required to use this site, and it is unsupported or disabled in
+        your browser. See{" "}
+        <a href="http://get.webgl.org">http://get.webgl.org</a> for more
+        information.
+      </div>
+    );
+  }
+
+  if (graph == null) {
+    return (
+      <div className="loadingScreen">
+        <h2>Loading... Please wait!</h2>
+      </div>
+    );
+  }
+
   return (
-    <>
-      {webglSupported === false ? (
-        <div>
-          WebGL is required to use this site, and it is unsupported or disabled
-          in your browser. See{" "}
-          <a href="http://get.webgl.org">http://get.webgl.org</a> for more
-          information
-        </div>
-      ) : graph == null ? (
-        <div className="loadingScreen">
-          <h2>Loading... Please wait!</h2>
-        </div>
-      ) : (
-        <CosmographProvider nodes={graph.nodes} links={graph.links}>
-          <div>
-            <Cosmograph
-              nodeLabelColor="#ffffff"
-              showDynamicLabels={false}
-              className="graph"
-              ref={graphRef}
-              onClick={(e) => {
-                select(e?.id ?? null, false, true);
-              }}
-              backgroundColor="#000000"
-              nodeSize={(node) => {
-                if (filtered.length !== 0 && !filtered.includes(node.id))
-                  return 0;
+    <CosmographProvider nodes={graph.nodes} links={graph.links}>
+      <div>
+        <Cosmograph
+          nodeLabelColor="#ffffff"
+          showDynamicLabels={false}
+          className="graph"
+          ref={graphRef}
+          onClick={(e) => {
+            select(e?.id ?? null, false, true);
+          }}
+          backgroundColor="#000000"
+          nodeSize={(node) => {
+            if (filtered.length !== 0 && !filtered.includes(node.id)) return 0;
 
-                return 1;
-              }}
-              linkWidth={2}
-              linkArrowsSizeScale={2}
-              linkGreyoutOpacity={0.25}
-              nodeGreyoutOpacity={0.25}
-              nodeColor={(node) => {
-                if (filtered.length !== 0 && !filtered.includes(node.id))
-                  return "transparent";
-                if (origGraph == null) return pastel(node.id);
+            return 1;
+          }}
+          linkWidth={2}
+          linkArrowsSizeScale={2}
+          linkGreyoutOpacity={0.25}
+          nodeGreyoutOpacity={0.25}
+          nodeColor={(node) => {
+            if (filtered.length !== 0 && !filtered.includes(node.id))
+              return "transparent";
+            if (origGraph == null) return pastel(node.id);
 
-                if (separation != null && separation.includes(node.id))
-                  return "red";
+            if (separation != null && separation.includes(node.id))
+              return "red";
 
-                const linksTo = origGraph.linksTo[node.id] ?? [];
-                const linkedFrom = origGraph.linkedFrom[node.id] ?? [];
-                if (selected != null) {
-                  if (node.id === selected) return "red";
-                  if (
-                    linksTo.includes(selected) &&
-                    linkedFrom.includes(selected)
-                  )
-                    return "cyan";
-                  if (linksTo.includes(selected)) return "green";
-                  if (linkedFrom.includes(selected)) return "blue";
+            const linksTo = origGraph.linksTo[node.id] ?? [];
+            const linkedFrom = origGraph.linkedFrom[node.id] ?? [];
+            if (selected != null) {
+              if (node.id === selected) return "red";
+              if (linksTo.includes(selected) && linkedFrom.includes(selected))
+                return "cyan";
+              if (linksTo.includes(selected)) return "green";
+              if (linkedFrom.includes(selected)) return "blue";
 
-                  return "white";
-                }
+              return "white";
+            }
 
-                return pastel(node.id);
-              }}
-              linkColor={(link) => {
-                if (
-                  filtered.length !== 0 &&
-                  !(
-                    filtered.includes(link.source) &&
-                    filtered.includes(link.target)
-                  )
-                )
-                  return "transparent";
+            return pastel(node.id);
+          }}
+          linkColor={(link) => {
+            if (
+              filtered.length !== 0 &&
+              !(
+                filtered.includes(link.source) && filtered.includes(link.target)
+              )
+            )
+              return "transparent";
 
-                const color = "#202020";
-                if (origGraph == null) return color;
+            const color = "#202020";
+            if (origGraph == null) return color;
 
-                const source = link.source;
-                const target = link.target;
+            const source = link.source;
+            const target = link.target;
 
-                if (
-                  separation != null &&
-                  separation.includes(source) &&
-                  separation.indexOf(source) === separation.indexOf(target) - 1
-                )
-                  return "red";
+            if (
+              separation != null &&
+              separation.includes(source) &&
+              separation.indexOf(source) === separation.indexOf(target) - 1
+            )
+              return "red";
 
-                const isLinkedTo = (source: string, target: string) =>
-                  origGraph.linksTo[source]?.includes(target);
-                const sourceToTarget = isLinkedTo(source, target);
-                const targetToSource = isLinkedTo(target, source);
+            const isLinkedTo = (source: string, target: string) =>
+              origGraph.linksTo[source]?.includes(target);
+            const sourceToTarget = isLinkedTo(source, target);
+            const targetToSource = isLinkedTo(target, source);
 
-                if (
-                  selected != null &&
-                  (source === selected || target === selected)
-                ) {
-                  if (sourceToTarget && targetToSource) return "cyan";
-                  if (source === selected && sourceToTarget) return "blue";
-                  return "green";
-                }
+            if (
+              selected != null &&
+              (source === selected || target === selected)
+            ) {
+              if (sourceToTarget && targetToSource) return "cyan";
+              if (source === selected && sourceToTarget) return "blue";
+              return "green";
+            }
 
-                if (sourceToTarget && targetToSource) return "white";
+            if (sourceToTarget && targetToSource) return "white";
 
-                return color;
-              }}
-            />
+            return color;
+          }}
+        />
+      </div>
+
+      <div className="controls">
+        <datalist id="domains">
+          {graph.nodes.map((x) => (
+            <option key={x.id} value={x.id} />
+          ))}
+        </datalist>
+
+        {extendedInfo && (
+          <div className="about">
+            <p>
+              This site crawls the links between{" "}
+              <a href="https://tekeye.uk/computer_history/powered-by">88x31s</a>{" "}
+              on the Internet, which are small badges on websites that link to
+              other websites.
+            </p>
+
+            <p>
+              Click on nodes to see more information. Press Space to focus the
+              node you've selected. Use the slider to filter degrees of
+              separation.
+            </p>
+
+            <p>
+              When a node is selected, the sidebar will contain information
+              about links, the node's buttons, and a pathfinder.
+            </p>
           </div>
+        )}
 
-          <div className="controls">
-            <datalist id="domains">
-              {graph.nodes.map((x) => (
-                <option key={x.id} value={x.id} />
-              ))}
-            </datalist>
+        <div className="buttonsAndStuff">
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setExtendedInfo(!extendedInfo);
+            }}
+          >
+            What is this?
+          </a>
+        </div>
 
-            {extendedInfo && (
-              <div className="about">
-                <p>
-                  This site crawls the links between{" "}
-                  <a href="https://tekeye.uk/computer_history/powered-by">
-                    88x31s
-                  </a>{" "}
-                  on the Internet, which are small badges on websites that link
-                  to other websites.
-                </p>
+        <input
+          type="range"
+          min="0"
+          max="10"
+          step="1"
+          defaultValue="0"
+          onChange={(e) => {
+            const value = parseInt(e.currentTarget.value);
 
-                <p>
-                  Click on nodes to see more information. Press Space to focus
-                  the node you've selected. Use the slider to filter degrees of
-                  separation.
-                </p>
+            if (value === 0) {
+              setFiltered([]);
+            } else {
+              if (
+                selected == null ||
+                graph == null ||
+                graphRef.current == null ||
+                origGraph == null
+              )
+                return;
 
-                <p>
-                  When a node is selected, the sidebar will contain information
-                  about links, the node's buttons, and a pathfinder.
-                </p>
-              </div>
-            )}
+              let domains = [selected];
 
-            <div className="buttonsAndStuff">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setExtendedInfo(!extendedInfo);
-                }}
-              >
-                What is this?
-              </a>
-            </div>
-
-            <input
-              type="range"
-              min="0"
-              max="10"
-              step="1"
-              defaultValue="0"
-              onChange={(e) => {
-                const value = parseInt(e.currentTarget.value);
-
-                if (value === 0) {
-                  setFiltered([]);
-                } else {
-                  if (
-                    selected == null ||
-                    graph == null ||
-                    graphRef.current == null ||
-                    origGraph == null
-                  )
-                    return;
-
-                  let domains = [selected];
-
-                  for (let i = value; i > 0; i--) {
-                    for (const domain of domains) {
-                      domains = domains.concat(origGraph.linksTo[domain] ?? []);
-                    }
-
-                    domains = [...new Set(domains)];
-                  }
-
-                  setFiltered(domains);
+              for (let i = value; i > 0; i--) {
+                for (const domain of domains) {
+                  domains = domains.concat(origGraph.linksTo[domain] ?? []);
                 }
-              }}
-            />
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const searchTerm = (
-                  e.target as HTMLFormElement
-                ).elements.namedItem("searchTerm") as HTMLInputElement;
-                if (graph != null) {
-                  select(searchTerm.value, true, true);
-                }
-              }}
-              className="searchInput"
-            >
-              <input
-                type="text"
-                id="searchTerm"
-                list="domains"
-                placeholder="Search"
-              />
-              <button type="submit">Go!</button>
-            </form>
+                domains = [...new Set(domains)];
+              }
+
+              setFiltered(domains);
+            }
+          }}
+        />
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const searchTerm = (e.target as HTMLFormElement).elements.namedItem(
+              "searchTerm"
+            ) as HTMLInputElement;
+            if (graph != null) {
+              select(searchTerm.value, true, true);
+            }
+          }}
+          className="searchInput"
+        >
+          <input
+            type="text"
+            id="searchTerm"
+            list="domains"
+            placeholder="Search"
+          />
+          <button type="submit">Go!</button>
+        </form>
+
+        <button
+          onClick={() => {
+            graphRef.current?.fitView();
+          }}
+        >
+          Reset View
+        </button>
+
+        <span className="by">
+          <a
+            href="https://github.com/NotNite/eightyeightthirtyone"
+            className="hasBadge"
+          >
+            <img src="/88x31.png" alt="eightyeightthirty.one" />
+          </a>
+          <a href="https://notnite.com/" className="hasBadge">
+            <img src="/notnite.png" alt="notnite" />
+          </a>
+        </span>
+      </div>
+
+      {selected != null && (
+        <div className="infobox">
+          <div className="infoboxInner">
+            <a href={`https://${selected}`} target="_blank" rel="noreferrer">
+              <h3>{selected}</h3>
+            </a>
 
             <button
+              className="clipboardButton"
               onClick={() => {
-                graphRef.current?.fitView();
+                navigator.clipboard.writeText(window.location.href);
               }}
             >
-              Reset View
+              Copy node link to clipboard
             </button>
+            <br />
+            <br />
 
-            <span className="by">
-              <a
-                href="https://github.com/NotNite/eightyeightthirtyone"
-                className="hasBadge"
-              >
-                <img src="/88x31.png" alt="eightyeightthirty.one" />
-              </a>
-              <a href="https://notnite.com/" className="hasBadge">
-                <img src="/notnite.png" alt="notnite" />
-              </a>
-            </span>
+            <span>Links to:</span>
+            <ul>
+              {(origGraph?.linksTo[selected] ?? []).map((x, i) => (
+                <li key={i}>
+                  <button onClick={() => select(x, true, true)}>{x}</button>
+                </li>
+              ))}
+            </ul>
+
+            <span>Linked from:</span>
+            <ul>
+              {(origGraph?.linkedFrom[selected] ?? []).map((x, i) => (
+                <li key={i}>
+                  <button onClick={() => select(x, true, true)}>{x}</button>
+                </li>
+              ))}
+            </ul>
+
+            <span>Badges:</span>
+            <ul className="badgesList">
+              {(origGraph?.images[selected] ?? []).map((x, i) => (
+                <li key={i} className="hasBadge">
+                  <img
+                    src={`${
+                      import.meta.env.VITE_BADGES_HOST ??
+                      "https://highway.eightyeightthirty.one"
+                    }/badge/${x}`}
+                    alt={x}
+                  />
+                </li>
+              ))}
+            </ul>
+
+            <span>Separation:</span>
+            <br />
+            <input
+              type="text"
+              list="domains"
+              placeholder="Search"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && graph != null) {
+                  setSeparation(bfs(selected, e.currentTarget.value));
+                  if (graphRef.current != null) {
+                    graphRef.current.selectNodes([]);
+                  }
+                }
+              }}
+            />
+            {separation != null && (
+              <ul>
+                {separation.map((x, i) => (
+                  <li key={i}>
+                    <button onClick={() => select(x, true, true)}>{x}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-
-          {selected != null && (
-            <div className="infobox">
-              <div className="infoboxInner">
-                <a
-                  href={`https://${selected}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <h3>{selected}</h3>
-                </a>
-
-                <button
-                  className="clipboardButton"
-                  onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                  }}
-                >
-                  Copy node link to clipboard
-                </button>
-                <br />
-                <br />
-
-                <span>Links to:</span>
-                <ul>
-                  {(origGraph?.linksTo[selected] ?? []).map((x, i) => (
-                    <li key={i}>
-                      <button onClick={() => select(x, true, true)}>{x}</button>
-                    </li>
-                  ))}
-                </ul>
-
-                <span>Linked from:</span>
-                <ul>
-                  {(origGraph?.linkedFrom[selected] ?? []).map((x, i) => (
-                    <li key={i}>
-                      <button onClick={() => select(x, true, true)}>{x}</button>
-                    </li>
-                  ))}
-                </ul>
-
-                <span>Badges:</span>
-                <ul className="badgesList">
-                  {(origGraph?.images[selected] ?? []).map((x, i) => (
-                    <li key={i} className="hasBadge">
-                      <img
-                        src={`${
-                          import.meta.env.VITE_BADGES_HOST ??
-                          "https://highway.eightyeightthirty.one"
-                        }/badge/${x}`}
-                        alt={x}
-                      />
-                    </li>
-                  ))}
-                </ul>
-
-                <span>Separation:</span>
-                <br />
-                <input
-                  type="text"
-                  list="domains"
-                  placeholder="Search"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && graph != null) {
-                      setSeparation(bfs(selected, e.currentTarget.value));
-                      if (graphRef.current != null) {
-                        graphRef.current.selectNodes([]);
-                      }
-                    }
-                  }}
-                />
-                {separation != null && (
-                  <ul>
-                    {separation.map((x, i) => (
-                      <li key={i}>
-                        <button onClick={() => select(x, true, true)}>
-                          {x}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
-        </CosmographProvider>
+        </div>
       )}
-    </>
+    </CosmographProvider>
   );
 }
