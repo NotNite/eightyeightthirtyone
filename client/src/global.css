@@ -23,7 +23,6 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-
     /* Text is more distinct with more transparency */
     --panel-background-color: rgba(0, 0, 0, 0.3);
 
@@ -179,8 +178,8 @@ img {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100vw !important;
+  height: 100vh !important;
   padding: 0;
   margin: 0;
   overflow: hidden;
@@ -189,10 +188,10 @@ img {
 input[type="text"],
 button {
   background-color: var(--dark-3);
-  border: var(--dark-5) .15rem solid;
-  border-radius: .15rem;
+  border: var(--dark-5) 0.15rem solid;
+  border-radius: 0.15rem;
   color: var(--highlight-1);
-  margin: .1rem 0;
+  margin: 0.1rem 0;
 }
 
 input[type="text"] {
@@ -201,7 +200,7 @@ input[type="text"] {
 
 input[type="text"]:focus-visible,
 button:focus-visible {
-  border: var(--highlight-2) .15rem solid;
+  border: var(--highlight-2) 0.15rem solid;
   outline: none;
 }
 

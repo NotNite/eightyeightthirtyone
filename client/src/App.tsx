@@ -182,9 +182,6 @@ export default function App() {
       ) : (
         <CosmographProvider nodes={graph.nodes} links={graph.links}>
           <div>
-            <div className="loadingScreen">
-              <h2>Loading... Please wait!</h2>
-            </div>
             <Cosmograph
               nodeLabelColor="#ffffff"
               showDynamicLabels={false}
@@ -216,7 +213,10 @@ export default function App() {
                 const linkedFrom = origGraph.linkedFrom[node.id] ?? [];
                 if (selected != null) {
                   if (node.id === selected) return "red";
-                  if (linksTo.includes(selected) && linkedFrom.includes(selected))
+                  if (
+                    linksTo.includes(selected) &&
+                    linkedFrom.includes(selected)
+                  )
                     return "cyan";
                   if (linksTo.includes(selected)) return "green";
                   if (linkedFrom.includes(selected)) return "blue";
@@ -302,10 +302,13 @@ export default function App() {
             )}
 
             <div className="buttonsAndStuff">
-              <a href="#" onClick={(e) => {
-                e.preventDefault();
-                setExtendedInfo(!extendedInfo)
-              }}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setExtendedInfo(!extendedInfo);
+                }}
+              >
                 What is this?
               </a>
             </div>
@@ -402,7 +405,6 @@ export default function App() {
                   className="clipboardButton"
                   onClick={() => {
                     navigator.clipboard.writeText(window.location.href);
-
                   }}
                 >
                   Copy node link to clipboard
@@ -462,7 +464,9 @@ export default function App() {
                   <ul>
                     {separation.map((x, i) => (
                       <li key={i}>
-                        <button onClick={() => select(x, true, true)}>{x}</button>
+                        <button onClick={() => select(x, true, true)}>
+                          {x}
+                        </button>
                       </li>
                     ))}
                   </ul>
