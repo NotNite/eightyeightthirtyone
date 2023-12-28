@@ -35,7 +35,7 @@ export default function App() {
   React.useEffect(() => {
     async function createGraphData() {
       const origGraph: ScrapedGraph = await fetch(
-        "/graph.json?t=" + Date.now()
+        "https://eightyeightthirty.one" + "/graph.json?t=" + Date.now()
       ).then((x) => x.json());
       setOrigGraph(origGraph);
 
@@ -64,6 +64,14 @@ export default function App() {
       }
 
       setGraph({ nodes, links });
+      if (window.location.hash) {
+        select(window.location.hash.slice(1), true, false);
+      }
+
+      window.addEventListener("hashchange", (ev) => {
+        ev.preventDefault();
+        select(window.location.hash.slice(1), true, false);
+      });
     }
 
     let webglSupported = false;
@@ -78,7 +86,7 @@ export default function App() {
     } catch (e) {
       // noop
     }
-    setWebglSupported(webglSupported)
+    setWebglSupported(webglSupported);
 
     // For some reason if the graph fails to create, it nukes all react elements
     if (webglSupported) createGraphData();
@@ -104,14 +112,17 @@ export default function App() {
     graphRef.current?.selectNodes(filter.map((x) => ({ id: x })));
   }
 
-  function select(domain: string | null, doPan: boolean) {
-    setSelected(domain);
+  function select(domain: string | null, doPan?: boolean, doHash?: boolean) {
     setSeparation(null);
-    if (domain != null) {
+    if (domain != null && domain.length > 4) {
+      setSelected(domain);
       if (doPan) pan(domain);
+      if (doHash) window.location.hash = domain;
       doSelectFilter(domain);
     } else {
+      if (doHash) window.location.hash = "";
       graphRef.current?.unselectNodes();
+      setSelected(null);
     }
   }
 
@@ -165,92 +176,99 @@ export default function App() {
           information
         </div>
       ) : graph == null ? (
-        <span>Loading... Please wait!</span>
+        <div className="loadingScreen">
+          <h2>Loading... Please wait!</h2>
+        </div>
       ) : (
         <CosmographProvider nodes={graph.nodes} links={graph.links}>
-          <Cosmograph
-            nodeLabelColor="#ffffff"
-            showDynamicLabels={false}
-            className="graph"
-            ref={graphRef}
-            onClick={(e) => {
-              select(e?.id ?? null, false);
-            }}
-            backgroundColor="#000000"
-            nodeSize={(node) => {
-              if (filtered.length !== 0 && !filtered.includes(node.id))
-                return 0;
+          <div>
+            <div className="loadingScreen">
+              <h2>Loading... Please wait!</h2>
+            </div>
+            <Cosmograph
+              nodeLabelColor="#ffffff"
+              showDynamicLabels={false}
+              className="graph"
+              ref={graphRef}
+              onClick={(e) => {
+                select(e?.id ?? null, false, true);
+              }}
+              backgroundColor="#000000"
+              nodeSize={(node) => {
+                if (filtered.length !== 0 && !filtered.includes(node.id))
+                  return 0;
 
-              return 1;
-            }}
-            linkWidth={2}
-            linkArrowsSizeScale={2}
-            linkGreyoutOpacity={0.25}
-            nodeGreyoutOpacity={0.25}
-            nodeColor={(node) => {
-              if (filtered.length !== 0 && !filtered.includes(node.id))
-                return "transparent";
-              if (origGraph == null) return pastel(node.id);
+                return 1;
+              }}
+              linkWidth={2}
+              linkArrowsSizeScale={2}
+              linkGreyoutOpacity={0.25}
+              nodeGreyoutOpacity={0.25}
+              nodeColor={(node) => {
+                if (filtered.length !== 0 && !filtered.includes(node.id))
+                  return "transparent";
+                if (origGraph == null) return pastel(node.id);
 
-              if (separation != null && separation.includes(node.id))
-                return "red";
+                if (separation != null && separation.includes(node.id))
+                  return "red";
 
-              const linksTo = origGraph.linksTo[node.id] ?? [];
-              const linkedFrom = origGraph.linkedFrom[node.id] ?? [];
-              if (selected != null) {
-                if (node.id === selected) return "red";
-                if (linksTo.includes(selected) && linkedFrom.includes(selected))
-                  return "cyan";
-                if (linksTo.includes(selected)) return "green";
-                if (linkedFrom.includes(selected)) return "blue";
+                const linksTo = origGraph.linksTo[node.id] ?? [];
+                const linkedFrom = origGraph.linkedFrom[node.id] ?? [];
+                if (selected != null) {
+                  if (node.id === selected) return "red";
+                  if (linksTo.includes(selected) && linkedFrom.includes(selected))
+                    return "cyan";
+                  if (linksTo.includes(selected)) return "green";
+                  if (linkedFrom.includes(selected)) return "blue";
 
-                return "white";
-              }
+                  return "white";
+                }
 
-              return pastel(node.id);
-            }}
-            linkColor={(link) => {
-              if (
-                filtered.length !== 0 &&
-                !(
-                  filtered.includes(link.source) &&
-                  filtered.includes(link.target)
+                return pastel(node.id);
+              }}
+              linkColor={(link) => {
+                if (
+                  filtered.length !== 0 &&
+                  !(
+                    filtered.includes(link.source) &&
+                    filtered.includes(link.target)
+                  )
                 )
-              )
-                return "transparent";
+                  return "transparent";
 
-              const color = "#202020";
-              if (origGraph == null) return color;
+                const color = "#202020";
+                if (origGraph == null) return color;
 
-              const source = link.source;
-              const target = link.target;
+                const source = link.source;
+                const target = link.target;
 
-              if (
-                separation != null &&
-                separation.includes(source) &&
-                separation.indexOf(source) === separation.indexOf(target) - 1
-              )
-                return "red";
+                if (
+                  separation != null &&
+                  separation.includes(source) &&
+                  separation.indexOf(source) === separation.indexOf(target) - 1
+                )
+                  return "red";
 
-              const isLinkedTo = (source: string, target: string) =>
-                origGraph.linksTo[source]?.includes(target);
-              const sourceToTarget = isLinkedTo(source, target);
-              const targetToSource = isLinkedTo(target, source);
+                const isLinkedTo = (source: string, target: string) =>
+                  origGraph.linksTo[source]?.includes(target);
+                const sourceToTarget = isLinkedTo(source, target);
+                const targetToSource = isLinkedTo(target, source);
 
-              if (
-                selected != null &&
-                (source === selected || target === selected)
-              ) {
-                if (sourceToTarget && targetToSource) return "cyan";
-                if (source === selected && sourceToTarget) return "blue";
-                return "green";
-              }
+                if (
+                  selected != null &&
+                  (source === selected || target === selected)
+                ) {
+                  if (sourceToTarget && targetToSource) return "cyan";
+                  if (source === selected && sourceToTarget) return "blue";
+                  return "green";
+                }
 
-              if (sourceToTarget && targetToSource) return "white";
+                if (sourceToTarget && targetToSource) return "white";
 
-              return color;
-            }}
-          />
+                return color;
+              }}
+            />
+          </div>
 
           <div className="controls">
             <datalist id="domains">
@@ -284,7 +302,10 @@ export default function App() {
             )}
 
             <div className="buttonsAndStuff">
-              <a href="#" onClick={() => setExtendedInfo(!extendedInfo)}>
+              <a href="#" onClick={(e) => {
+                e.preventDefault();
+                setExtendedInfo(!extendedInfo)
+              }}>
                 What is this?
               </a>
             </div>
@@ -324,22 +345,43 @@ export default function App() {
               }}
             />
 
-            <input
-              type="text"
-              list="domains"
-              placeholder="Search"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && graph != null) {
-                  select(e.currentTarget.value, true);
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const searchTerm = (
+                  e.target as HTMLFormElement
+                ).elements.namedItem("searchTerm") as HTMLInputElement;
+                if (graph != null) {
+                  select(searchTerm.value, true, true);
                 }
               }}
-            />
+              className="searchInput"
+            >
+              <input
+                type="text"
+                id="searchTerm"
+                list="domains"
+                placeholder="Search"
+              />
+              <button type="submit">Go!</button>
+            </form>
+
+            <button
+              onClick={() => {
+                graphRef.current?.fitView();
+              }}
+            >
+              Reset View
+            </button>
 
             <span className="by">
-              <a href="https://github.com/NotNite/eightyeightthirtyone">
+              <a
+                href="https://github.com/NotNite/eightyeightthirtyone"
+                className="hasBadge"
+              >
                 <img src="/88x31.png" alt="eightyeightthirty.one" />
               </a>
-              <a href="https://notnite.com/">
+              <a href="https://notnite.com/" className="hasBadge">
                 <img src="/notnite.png" alt="notnite" />
               </a>
             </span>
@@ -356,11 +398,23 @@ export default function App() {
                   <h3>{selected}</h3>
                 </a>
 
+                <button
+                  className="clipboardButton"
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+
+                  }}
+                >
+                  Copy node link to clipboard
+                </button>
+                <br />
+                <br />
+
                 <span>Links to:</span>
                 <ul>
                   {(origGraph?.linksTo[selected] ?? []).map((x, i) => (
                     <li key={i}>
-                      <button onClick={() => select(x, true)}>{x}</button>
+                      <button onClick={() => select(x, true, true)}>{x}</button>
                     </li>
                   ))}
                 </ul>
@@ -369,15 +423,15 @@ export default function App() {
                 <ul>
                   {(origGraph?.linkedFrom[selected] ?? []).map((x, i) => (
                     <li key={i}>
-                      <button onClick={() => select(x, true)}>{x}</button>
+                      <button onClick={() => select(x, true, true)}>{x}</button>
                     </li>
                   ))}
                 </ul>
 
                 <span>Badges:</span>
-                <ul>
+                <ul className="badgesList">
                   {(origGraph?.images[selected] ?? []).map((x, i) => (
-                    <li key={i}>
+                    <li key={i} className="hasBadge">
                       <img
                         src={`${
                           import.meta.env.VITE_BADGES_HOST ??
@@ -408,7 +462,7 @@ export default function App() {
                   <ul>
                     {separation.map((x, i) => (
                       <li key={i}>
-                        <button onClick={() => select(x, true)}>{x}</button>
+                        <button onClick={() => select(x, true, true)}>{x}</button>
                       </li>
                     ))}
                   </ul>
