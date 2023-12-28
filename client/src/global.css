@@ -97,13 +97,18 @@ canvas {
     align-items: center;
     gap: 0.5ch;
   }
-}
 
-.about {
-  & > p:first-child {
-    margin: 0;
+  .about {
+    & > p:first-child {
+      margin: 0;
+    }
+
+    & > p:last-child {
+      margin: 0;
+    }
   }
 }
+
 
 .hasBadge {
   max-width: 88px;
@@ -154,8 +159,8 @@ canvas {
 
   li::before {
     content: "";
-    min-width: 0.3rem;
-    min-height: 0.3rem;
+    min-width: 4px;
+    min-height: 4px;
     border-radius: 50%;
     background: var(--highlight-1);
     margin-right: 0.5rem;
