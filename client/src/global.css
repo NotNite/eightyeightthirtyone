@@ -17,8 +17,6 @@
   --highlight-1: hsl(0, 0%, 92%);
   --highlight-2: hsl(0, 0%, 75%);
   --highlight-3: hsl(0, 0%, 65%);
-
-  --color-scheme-filter: none;
 }
 
 @media (prefers-color-scheme: light) {
@@ -36,8 +34,11 @@
     --highlight-1: hsl(0, 0%, 8%);
     --highlight-2: hsl(0, 0%, 25%);
     --highlight-3: hsl(0, 0%, 35%);
+  }
 
-    --color-scheme-filter: invert(100%);
+  /* Graph inverts text color for some reason, probably pulling it from body or elsewhere. */
+  .graph .css-label--label {
+    color: #ffffff
   }
 }
 
@@ -51,11 +52,7 @@ body,
   font-family: "Inter", sans-serif;
   background-color: var(--dark-0);
   color: var(--highlight-0);
-}
-
-canvas {
-  filter: var(--color-scheme-filter);
-}
+} 
 
 .loadingScreen {
   display: flex;
