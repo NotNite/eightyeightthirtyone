@@ -31,6 +31,9 @@ export default function App() {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [separation, setSeparation] = React.useState<string[] | null>(null);
   const [extendedInfo, setExtendedInfo] = React.useState(false);
+  const [lightMode, setLightMode] = React.useState(
+    window.matchMedia("(prefers-color-scheme: light)").matches
+  );
 
   React.useEffect(() => {
     async function createGraphData() {
@@ -155,6 +158,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
+  React.useEffect(() => {
+    window
+      .matchMedia("(prefers-color-scheme: light)")
+      .addEventListener("change", ({ matches: isLight }) => {
+        setLightMode(!isLight);
+      });
+  }, [lightMode]);
+
   function pastel(str: string) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -187,14 +198,14 @@ export default function App() {
     <CosmographProvider nodes={graph.nodes} links={graph.links}>
       <div>
         <Cosmograph
-          nodeLabelColor="#ffffff"
+          nodeLabelColor="#000000"
           showDynamicLabels={false}
           className="graph"
           ref={graphRef}
           onClick={(e) => {
             select(e?.id ?? null, false, true);
           }}
-          backgroundColor="#000000"
+          backgroundColor={lightMode ? "#fcfcfc" : "#000000"}
           nodeSize={(node) => {
             if (filtered.length !== 0 && !filtered.includes(node.id)) return 0;
 
@@ -221,7 +232,7 @@ export default function App() {
               if (linksTo.includes(selected)) return "green";
               if (linkedFrom.includes(selected)) return "blue";
 
-              return "white";
+              return lightMode ? "black" : "white";
             }
 
             return pastel(node.id);
@@ -235,7 +246,7 @@ export default function App() {
             )
               return "transparent";
 
-            const color = "#202020";
+            const color = lightMode ? "#bfbfbf" : "#202020";
             if (origGraph == null) return color;
 
             const source = link.source;
@@ -262,7 +273,8 @@ export default function App() {
               return "green";
             }
 
-            if (sourceToTarget && targetToSource) return "white";
+            if (sourceToTarget && targetToSource)
+              return lightMode ? "#444444" : "white";
 
             return color;
           }}
