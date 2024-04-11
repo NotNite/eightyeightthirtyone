@@ -40,7 +40,7 @@ export default function App() {
   React.useEffect(() => {
     async function createGraphData() {
       const origGraph: ScrapedGraph = await fetch(
-        "https://eightyeightthirty.one/graph.json?t=" + Date.now()
+        "/graph.json?t=" + Date.now()
       ).then((x) => x.json());
       setOrigGraph(origGraph);
 
