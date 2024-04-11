@@ -19,6 +19,8 @@ type Graph = {
   links: CustomLink[];
 };
 
+const lastScrape = new Date("2024-04-10T12:30:00.000Z").toDateString();
+
 export default function App() {
   const [origGraph, setOrigGraph] = React.useState<ScrapedGraph | null>(null);
   const [graph, setGraph] = React.useState<Graph | null>(null);
@@ -38,7 +40,7 @@ export default function App() {
   React.useEffect(() => {
     async function createGraphData() {
       const origGraph: ScrapedGraph = await fetch(
-        "/graph.json?t=" + Date.now()
+        "https://eightyeightthirty.one/graph.json?t=" + Date.now()
       ).then((x) => x.json());
       setOrigGraph(origGraph);
 
@@ -306,6 +308,10 @@ export default function App() {
             <p>
               When a node is selected, the sidebar will contain information
               about links, the node's buttons, and a pathfinder.
+            </p>
+
+            <p>
+              The last scrape was {lastScrape}
             </p>
           </div>
         )}
