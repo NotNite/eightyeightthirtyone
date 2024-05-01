@@ -627,6 +627,18 @@ async fn statistics(State(state): State<AppState>) -> AppResult<Json<Statistics>
     }))
 }
 
+async fn update_queue_handler(
+    State(state): State<AppState>,
+    AuthBearer(token): AuthBearer,
+) -> AppResult<Response<Body>> {
+    if token != state.config.admin_key {
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
+    }
+
+    update_queue(&state).await?;
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
 async fn update_queue(state: &AppState) -> anyhow::Result<()> {
     println!("Updating queue...");
 
@@ -726,6 +738,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/badge/:sha256", post(post_badge))
         .route("/badge/:sha256", get(get_badge))
         .route("/statistics", get(statistics))
+        .route("/update_queue", post(update_queue_handler))
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", config.port))
