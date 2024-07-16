@@ -15,6 +15,7 @@ use fred::{
         ClientLike, HashesInterface, HyperloglogInterface, KeysInterface, ListInterface,
         SetsInterface, SortedSetsInterface, TransactionInterface,
     },
+    types::{Server, ServerConfig},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -26,6 +27,8 @@ use uuid::Uuid;
 struct Config {
     port: u16,
     admin_key: String,
+    redis_host: Option<String>,
+    redis_port: Option<u16>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -717,7 +720,18 @@ async fn main() -> anyhow::Result<()> {
     let config = std::fs::read_to_string(config_path)?;
     let config: Config = serde_json::from_str(&config)?;
 
-    let client = RedisClient::default();
+    let mut redis_config = fred::types::RedisConfig::default();
+    if let Some(host) = &config.redis_host {
+        let port = config.redis_port.unwrap_or(6379);
+        redis_config.server = ServerConfig::Centralized {
+            server: Server {
+                host: host.clone().into(),
+                port,
+            },
+        };
+    }
+
+    let client = RedisClient::new(redis_config, None, None, None);
     client.connect();
     client.wait_for_connect().await?;
 

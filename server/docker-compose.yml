@@ -1,9 +1,18 @@
 version: "3.8"
 
 services:
+  eightyeightthirtyone:
+    build: .
+    ports:
+      - 8831:8831
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    volumes:
+      - ./images:/app/images
+      - ./config.json:/config.json
+
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
-    ports:
-      - 6379:6379
     volumes:
       - ./data:/data
