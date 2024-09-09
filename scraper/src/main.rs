@@ -218,7 +218,8 @@ async fn process(
                 let document = scraper::Html::parse_document(&text);
                 let body = document.root_element();
 
-                let canonical_selector = scraper::Selector::parse("link[rel=canonical]").unwrap();
+                let canonical_selector = scraper::Selector::parse("link[rel=canonical]")
+                    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
                 let canonical = body.select(&canonical_selector);
 
                 // Find the first rel=canonical link
@@ -237,8 +238,8 @@ async fn process(
 
                 // If there are no rel=canonical links, we can try for opengraph tags
                 if canonical_url.is_none() {
-                    let meta_selector =
-                        scraper::Selector::parse("meta[property=\"og:url\"]").unwrap();
+                    let meta_selector = scraper::Selector::parse("meta[property=\"og:url\"]")
+                        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
                     let meta_tags = body.select(&meta_selector);
                     for meta_tag in meta_tags {
                         if let Some(href) = meta_tag.attr("content") {
@@ -271,7 +272,8 @@ async fn process(
             };
 
             let body = document.root_element();
-            let selector = scraper::Selector::parse("a").unwrap();
+            let selector =
+                scraper::Selector::parse("a").map_err(|e| anyhow::anyhow!(e.to_string()))?;
             let links = body.select(&selector);
             for link in links {
                 if let Some(href) = link.value().attr("href") {
