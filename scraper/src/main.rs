@@ -8,6 +8,7 @@ use thirtyfour::{
 };
 use thiserror::Error;
 
+pub static AGENT: &str = "EightyEightThirtyOne";
 pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 eightyeightthirtyone/1.0.0 (https://github.com/NotNite/eightyeightthirtyone)";
 
 #[derive(Deserialize, Debug, Clone)]
@@ -98,7 +99,7 @@ async fn check_robots_txt(url: &str) -> anyhow::Result<bool> {
     let robot_url = get_robots_url(url)?;
     let response = reqwest::get(robot_url).await?;
     let text = response.text().await?;
-    let robots = Robot::new(USER_AGENT, text.as_bytes())?;
+    let robots = Robot::new(AGENT, text.as_bytes())?;
     Ok(robots.allowed(url))
 }
 
