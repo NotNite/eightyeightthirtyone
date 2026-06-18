@@ -24,7 +24,7 @@ Scrapers can either run a WebDriver or just parse the HTML - note that the latte
 The scrapers respect robots.txt, so you can block this user agent (or allow if you want to opt in) within the robots.txt:
 
 ```text
-User-Agent: EightyEightThirtyOne
+User-Agent: eightyeightthirtyone
 Disallow: /
 ```
 
