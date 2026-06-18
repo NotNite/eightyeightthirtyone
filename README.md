@@ -21,7 +21,14 @@ Scrapers can either run a WebDriver or just parse the HTML - note that the latte
 
 ## Opting out
 
-The scrapers respect robots.txt, so block this user agent (or allow if you want to opt in):
+The scrapers respect robots.txt, so you can block this user agent (or allow if you want to opt in) within the robots.txt:
+
+```text
+User-Agent: eightyeightthirtyone
+Disallow: /
+```
+
+Or block the scrapers itself within your webserver using the following user agent;
 
 ```text
 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 eightyeightthirtyone/1.0.0 (https://github.com/NotNite/eightyeightthirtyone)

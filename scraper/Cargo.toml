@@ -16,7 +16,7 @@ scraper = "0.18.1"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
 sha2 = "0.10.8"
-texting_robots = "0.2.2"
+texting_robots = { git = "https://github.com/Electrenator/texting_robots.git", rev = "a5c9758912c2c7fe348f8af3ed714865899f84be"}
 thirtyfour = "0.31.0"
 thiserror = "1.0.51"
 tokio = { version = "1.35.1", features = ["full"] }
